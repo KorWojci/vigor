@@ -50,3 +50,6 @@ npm-debug.log*
 ios/**/xcuserdata/
 ios/**/DerivedData/
 ios/**/build/
+
+# local reference files (never committed)
+/resources/
