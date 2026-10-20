@@ -16,16 +16,16 @@ next-env.d.ts
 *.key
 
 # personal data: databases, backups, exports, imports
-data/
-/data
+/data/
+# (anchored: an unanchored "data/" would also ignore src/lib/data and src/app/api/data)
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
 *.sqlite
 *.sqlite3
-backups/
-exports/
+/backups/
+/exports/
 *.backup
 vigor-export-*.json
 vigor-backup-*
@@ -36,7 +36,7 @@ export.xml
 export.zip
 
 # logs
-logs/
+/logs/
 *.log
 npm-debug.log*
 
