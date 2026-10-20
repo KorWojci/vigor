@@ -191,7 +191,45 @@ export default async function AppleHealthPage() {
               <strong>Troubleshoot</strong> with the checklist below if the run fails.
             </li>
           </ol>
-          <p className="small muted">A complete walkthrough with a JSON template is in <code>docs/apple-health-shortcuts.md</code>.</p>
+          <details className="disclosure" style={{ marginTop: 12 }}>
+            <summary>Example request body (what one run actually sends)</summary>
+            <p className="small muted">
+              <code>POST {isLocalhost ? "http://<ip>:3000" : base}/api/v1/health/import</code>. Every sample is the same shape regardless of type — the
+              Shortcut&rsquo;s dictionary always fills both <code>value</code> and <code>category</code> from the sample&rsquo;s Value, so for non-sleep types
+              <code>category</code> arrives as a stray text copy of the number and is simply ignored. <code>replaceWindows</code> has one entry per type
+              that returned at least one sample this run (types with none are left out of both, per step 3).
+            </p>
+            <pre><code>{`{
+  "schemaVersion": 1,
+  "source": "apple-shortcuts",
+  "syncId": "2026-10-20T08:00:00+02:00",
+  "generatedAt": "2026-10-20T08:00:00+02:00",
+  "samples": [
+    { "type": "step_count", "value": 842, "category": "842", "unit": "count",
+      "startAt": "2026-10-20T07:00:00+02:00", "endAt": "2026-10-20T07:30:00+02:00", "sourceName": "Apple Watch" },
+    { "type": "heart_rate", "value": 64, "category": "64", "unit": "count/min",
+      "startAt": "2026-10-20T07:12:00+02:00", "endAt": "2026-10-20T07:12:00+02:00", "sourceName": "Apple Watch" },
+    { "type": "body_mass", "value": 80.4, "category": "80.4", "unit": "kg",
+      "startAt": "2026-10-20T07:05:00+02:00", "endAt": "2026-10-20T07:05:00+02:00", "sourceName": "Health Scale" },
+    { "type": "sleep_analysis", "value": "Deep", "category": "Deep", "unit": "",
+      "startAt": "2026-10-20T01:10:00+02:00", "endAt": "2026-10-20T02:05:00+02:00", "sourceName": "Apple Watch" },
+    { "type": "dietary_protein", "value": 32, "category": "32", "unit": "g",
+      "startAt": "2026-10-20T07:40:00+02:00", "endAt": "2026-10-20T07:40:00+02:00", "sourceName": "MyFitnessPal" }
+  ],
+  "replaceWindows": [
+    { "type": "step_count", "startAt": "2026-10-20T02:00:00+02:00", "endAt": "2026-10-20T08:00:00+02:00" },
+    { "type": "heart_rate", "startAt": "2026-10-20T02:00:00+02:00", "endAt": "2026-10-20T08:00:00+02:00" },
+    { "type": "body_mass", "startAt": "2026-10-20T02:00:00+02:00", "endAt": "2026-10-20T08:00:00+02:00" },
+    { "type": "sleep_analysis", "startAt": "2026-10-20T02:00:00+02:00", "endAt": "2026-10-20T08:00:00+02:00" },
+    { "type": "dietary_protein", "startAt": "2026-10-20T02:00:00+02:00", "endAt": "2026-10-20T08:00:00+02:00" }
+  ]
+}`}</code></pre>
+            <p className="tiny faint">
+              <code>sleep_analysis</code>&rsquo;s stage label lands in both fields too; Vigor reads <code>category</code> for sleep and ignores <code>value</code>
+              there. Validated against the import pipeline: 5 received, 5 accepted, 0 rejected.
+            </p>
+          </details>
+          <p className="small muted" style={{ marginTop: 10 }}>A complete walkthrough is in <code>docs/apple-health-shortcuts.md</code>.</p>
         </div>
       </section>
 
