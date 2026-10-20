@@ -1,0 +1,14 @@
+"title","start_time","end_time","description","exercise_title","superset_id","exercise_notes","set_index","set_type","weight_kg","reps","distance_km","duration_seconds","rpe"
+"Upper A (SYNTHETIC)","6 Oct 2026, 18:00","6 Oct 2026, 19:05","Synthetic sample data","Bench Press (Barbell)",,,"0","warmup","40","10",,,
+"Upper A (SYNTHETIC)","6 Oct 2026, 18:00","6 Oct 2026, 19:05","Synthetic sample data","Bench Press (Barbell)",,,"1","normal","70","8",,,"8"
+"Upper A (SYNTHETIC)","6 Oct 2026, 18:00","6 Oct 2026, 19:05","Synthetic sample data","Bench Press (Barbell)",,,"2","normal","70","7",,,"9"
+"Upper A (SYNTHETIC)","6 Oct 2026, 18:00","6 Oct 2026, 19:05","Synthetic sample data","Pull Up",,,"0","normal",,"10",,,
+"Upper A (SYNTHETIC)","6 Oct 2026, 18:00","6 Oct 2026, 19:05","Synthetic sample data","Pull Up",,,"1","normal",,"8",,,
+"Upper A (SYNTHETIC)","6 Oct 2026, 18:00","6 Oct 2026, 19:05","Synthetic sample data","Plank",,,"0","normal",,,,"60",
+"Lower A (SYNTHETIC)","8 Oct 2026, 18:00","8 Oct 2026, 19:10","","Squat (Barbell)",,,"0","normal","100","5",,,"8"
+"Lower A (SYNTHETIC)","8 Oct 2026, 18:00","8 Oct 2026, 19:10","","Squat (Barbell)",,,"1","normal","100","5",,,"8"
+"Lower A (SYNTHETIC)","8 Oct 2026, 18:00","8 Oct 2026, 19:10","","Assisted Dip",,,"0","normal","20","10",,,
+"Lower A (SYNTHETIC)","8 Oct 2026, 18:00","8 Oct 2026, 19:10","","Farmers Walk",,,"0","normal","32",,"0.04",,
+"Upper B (SYNTHETIC)","13 Oct 2026, 18:00","13 Oct 2026, 19:00","","Bench Press (Barbell)",,,"0","normal","72.5","8",,,"8"
+"Upper B (SYNTHETIC)","13 Oct 2026, 18:00","13 Oct 2026, 19:00","","Bench Press (Barbell)",,,"1","normal","72.5","6",,,"9"
+"Upper B (SYNTHETIC)","13 Oct 2026, 18:00","13 Oct 2026, 19:00","","Pull Up",,,"0","normal",,"11",,,

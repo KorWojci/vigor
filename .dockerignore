@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+data
+backups
+*.db
+*.db-*
+.env
+.env.*
+!.env.example
+ios
+docs
+tests
+*.log

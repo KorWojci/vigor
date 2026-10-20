@@ -1,0 +1,52 @@
+# dependencies
+node_modules/
+
+# build output
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# environment & secrets — never commit real configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# personal data: databases, backups, exports, imports
+data/
+/data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+backups/
+exports/
+*.backup
+vigor-export-*.json
+vigor-backup-*
+# real Hevy / Apple Health exports (synthetic samples live in samples/ and are allowed)
+*.csv
+!samples/**/*.csv
+export.xml
+export.zip
+
+# logs
+logs/
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# iOS build products
+ios/**/xcuserdata/
+ios/**/DerivedData/
+ios/**/build/

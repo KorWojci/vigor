@@ -1,0 +1,108 @@
+# Example Kubernetes deployment for Vigor (single replica — SQLite is a single-writer database).
+# Apply: kubectl apply -f deploy/k8s/vigor.yaml
+# Build/push the image first (or load it into your cluster) and adjust `image:`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vigor
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vigor-data
+  namespace: vigor
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName: local-path   # set to a class available in your cluster
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vigor-env
+  namespace: vigor
+type: Opaque
+stringData:
+  # Optional: bootstrap the first account. Remove after first start, or use the /setup page instead.
+  # VIGOR_ADMIN_PASSWORD: "replace-with-a-long-passphrase"
+  VIGOR_SECURE_COOKIES: "false"   # "true" when served via HTTPS ingress
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vigor
+  namespace: vigor
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # never run two pods against the same SQLite file
+  selector:
+    matchLabels: { app: vigor }
+  template:
+    metadata:
+      labels: { app: vigor }
+    spec:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        runAsNonRoot: true
+      containers:
+        - name: vigor
+          image: vigor:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: VIGOR_DATA_DIR
+              value: /data
+            - name: TZ
+              value: UTC
+          envFrom:
+            - secretRef:
+                name: vigor-env
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            # Writable scratch space for Next.js cache and temp files (no personal data).
+            - name: next-cache
+              mountPath: /app/.next/cache
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet: { path: /api/healthz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/healthz, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: vigor-data
+        - name: next-cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vigor
+  namespace: vigor
+spec:
+  selector: { app: vigor }
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
