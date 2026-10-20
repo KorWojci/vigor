@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ImportValidationError, importHealthPayload } from "@/lib/ingest/health-import";
+import { deleteSampleById, ImportValidationError, importHealthPayload } from "@/lib/ingest/health-import";
 import { parseTimestamp } from "@/lib/ingest/schema";
 import { doImport, envelope, testDb } from "./helpers";
 
@@ -171,6 +171,16 @@ describe("health import", () => {
       { type: "distance_walking_running", value: 1250, category: null },
       { type: "sleep_analysis", value: 60, category: "asleep_deep" },
     ]);
+  });
+
+  it("soft-deletes one imported sample by row id, as a tombstone", () => {
+    const db = testDb();
+    doImport(db, envelope({ samples: [steps("a", 1), steps("b", 1)] }));
+    const { id } = db.prepare("SELECT id FROM health_samples ORDER BY id LIMIT 1").get() as { id: number };
+    expect(deleteSampleById(db, id)).toBe(true);
+    expect(db.prepare("SELECT deleted_at FROM health_samples WHERE id = ?").get(id)).toMatchObject({ deleted_at: expect.any(Number) });
+    expect(deleteSampleById(db, id)).toBe(false); // already gone — safe to retry
+    expect(deleteSampleById(db, 999_999)).toBe(false); // unknown id
   });
 
   it("rejects malformed envelopes as a whole", () => {

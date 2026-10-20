@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SleepChart, TrendChart } from "@/components/charts";
-import { Delta, EmptyState, PageHead, RangeSelector } from "@/components/ui";
+import { Delta, EmptyState, FlashMessage, PageHead, RangeSelector } from "@/components/ui";
+import { deleteSampleAction } from "./actions";
 import { getMetricSummary, getRecentSamples, getSleepNights, getSourceBreakdown } from "@/lib/aggregation/series";
 import { MEASUREMENT_METRIC_LINKS } from "@/lib/body/measurement-types";
 import { formatMetric, formatMetricText, trendOf } from "@/lib/format";
@@ -55,6 +56,7 @@ export default async function MetricDetail({ params, searchParams }: { params: P
       <PageHead eyebrow={group} title={def.label} sub={<span className="small">{def.description ?? `Canonical unit: ${def.unit}${def.healthKit ? ` · HealthKit: ${def.healthKit}` : ""}`}</span>}>
         <RangeSelector current={preset.key} basePath={`/metrics/${def.key}`} />
       </PageHead>
+      <FlashMessage searchParams={sp} />
 
       {summary.daysWithData === 0 ? (
         <div className="card">
@@ -166,13 +168,21 @@ export default async function MetricDetail({ params, searchParams }: { params: P
           ) : (
             <div className="table-wrap" style={{ maxHeight: 360, overflowY: "auto" }}>
               <table>
-                <thead><tr><th>Time</th><th className="r">Value</th><th>Source</th></tr></thead>
+                <thead><tr><th>Time</th><th className="r">Value</th><th>Source</th><th /></tr></thead>
                 <tbody>
                   {samples.map((s) => (
                     <tr key={s.id}>
                       <td className="small">{formatDateTime(s.startMs, tz)}{s.endMs - s.startMs > 60_000 ? <span className="faint"> – {formatDateTime(s.endMs, tz).split(", ")[1]}</span> : null}</td>
                       <td className="r num">{def.aggregation === "sleep" ? `${s.category?.replace("asleep_", "")} · ${formatDuration((s.endMs - s.startMs) / 60_000)}` : formatMetricText(def, s.value, units)}</td>
                       <td className="small muted">{s.sourceName ?? s.source}</td>
+                      <td className="r">
+                        <form action={deleteSampleAction}>
+                          <input type="hidden" name="id" value={s.id} />
+                          <input type="hidden" name="type" value={def.key} />
+                          <input type="hidden" name="range" value={preset.key} />
+                          <button type="submit" className="btn small danger" title="Delete this sample">Delete</button>
+                        </form>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

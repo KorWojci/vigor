@@ -491,6 +491,18 @@ export function importHealthPayload(db: DB, body: unknown, opts: ImportOptions):
   };
 }
 
+/**
+ * Soft-deletes one imported sample by its row id (the manual "Recent samples" delete button in
+ * the UI, as opposed to the `deleted[]` array in the import API, which deletes by `externalId`).
+ * Kept as a tombstone, like every other deletion path, so a later re-send of the same content is
+ * recognised rather than silently reviving it. Returns false if the row was already gone.
+ */
+export function deleteSampleById(db: DB, id: number): boolean {
+  const now = Date.now();
+  const res = db.prepare("UPDATE health_samples SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL").run(now, now, id);
+  return res.changes > 0;
+}
+
 /** Records a request that was authenticated but rejected before processing (bad JSON, schema, size). */
 export function recordRejectedImport(
   db: DB,
