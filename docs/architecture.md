@@ -30,7 +30,7 @@ All tables are defined in `src/lib/db/migrations.ts`.
 | --- | --- |
 | `users`, `sessions` | Single account. Scrypt password hash. Sessions are stored as SHA-256 of the cookie token. |
 | `api_tokens` | Ingestion tokens: SHA-256 hash, display prefix, `revoked_at`. |
-| `settings` | JSON key/value store, validated by zod schemas in `src/lib/settings.ts`. |
+| `settings` | JSON key/value store, validated by zod schemas in `src/lib/settings.ts`. The dashboard layout (`dashboardLayout`: ordered widget keys per zone `left`/`right`/`below`; absent = hidden) lives here. |
 | `health_samples` | Every imported sample: `type` (metric key), `value` in canonical unit, `category` (sleep stage), `start_ms`/`end_ms`, `source` (integration that delivered it), `source_name` (app/device that recorded it), `external_id` (unique), `content_hash`, `deleted_at`. |
 | `workouts` | Apple Health workout summaries and Hevy workouts (`source = 'hevy'`). |
 | `exercises`, `exercise_aliases` | Canonical exercises plus aliases created by merges. `kind` is inferred unless `kind_locked`. |
@@ -91,7 +91,7 @@ Period values (dashboard tiles) are the mean of daily values over days **with da
 - **A new health metric:** add a `MetricDef` to `src/lib/metrics/catalog.ts` (key, canonical unit, aggregation). If needed, add unit aliases to `src/lib/units.ts` and a HealthKit mapping to `ios/VigorSync/Sources/HealthTypes.swift`. No migration is needed. Add a test in `tests/`.
 - **A new import source:** produce the import contract (`docs/import-api.md`) with a distinct `source` id. Server-side adapters (e.g. a future Apple Health `export.zip` importer) should call `importHealthPayload` in batches rather than writing tables directly, so they get deduplication and history for free.
 - **A schema change:** append a migration. Update the export table list in `src/lib/data/manage.ts` if the table holds user data.
-- **A dashboard tile:** add it to `DASHBOARD_TILES` in `src/lib/settings.ts` and to `TILE_METRIC` in `src/app/(app)/page.tsx`.
+- **A dashboard widget:** add a `WidgetDef` to `WIDGETS` in `src/lib/dashboard-layout.ts`. A `tile` only needs its metric key; a `panel` also needs a renderer in `panels` in `src/app/(app)/page.tsx`. New widgets start hidden until the user places them (or add them to `DEFAULT_LAYOUT`).
 
 ## Background processing
 

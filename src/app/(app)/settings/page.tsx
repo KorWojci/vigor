@@ -6,7 +6,8 @@ import { listBackups, storageStats } from "@/lib/data/manage";
 import { formatBytes } from "@/lib/format";
 import { getSyncStatus, listImportRuns } from "@/lib/ingest/sync-status";
 import { appContext, db } from "@/lib/server/context";
-import { DASHBOARD_TILES } from "@/lib/settings";
+import { DashboardEditor } from "@/components/DashboardEditor";
+import { getDashboardLayout } from "@/lib/settings";
 import { formatDateTime, formatRelative, RANGE_PRESETS } from "@/lib/time";
 import { EXERCISE_KINDS } from "@/lib/training/calculations";
 import { listExercises } from "@/lib/training/repo";
@@ -99,29 +100,25 @@ function ProfileTab({ ctx }: { ctx: Ctx }) {
 
 function MetricsTab({ ctx }: { ctx: Ctx }) {
   return (
-    <div className="grid grid-2">
-      <form action={saveMetricsSettingsAction} className="card form">
-        <h2>Dashboard</h2>
-        <p className="small muted">Choose which metrics appear around the figure. Order follows this list.</p>
-        <div className="grid grid-2" style={{ gap: 8 }}>
-          {DASHBOARD_TILES.map((t) => (
-            <label key={t.key} className="check"><input type="checkbox" name="tiles" value={t.key} defaultChecked={ctx.settings.dashboardTiles.includes(t.key)} />{t.label}</label>
-          ))}
+    <div className="stack">
+      <DashboardEditor initial={getDashboardLayout(db())} returnTo="/settings?tab=metrics" />
+      <div className="grid grid-2">
+        <form action={saveMetricsSettingsAction} className="card form">
+          <h2>Charts</h2>
+          <label className="field">
+            <span>Moving average on metric charts</span>
+            <select name="movingAverageDays" defaultValue={String(ctx.settings.movingAverageDays)}>
+              <option value="0">Off</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option>
+            </select>
+          </label>
+          <div><button className="btn primary">Save</button></div>
+        </form>
+        <div className="card">
+          <h2>Measurement definitions</h2>
+          <p className="small">Built-in body measurements cover height, weight, body fat, lean mass, neck, shoulders, chest, waist, hips and both arms, forearms, thighs and calves. Each is linked to a region of the dashboard figure.</p>
+          <p className="small">Add your own (e.g. wrist, ankle) on the <Link href="/body">Body measurements</Link> page.</p>
+          <p className="small muted">Health metric types and their aggregation rules are defined in <code>src/lib/metrics/catalog.ts</code>; see <code>docs/architecture.md</code> to add a new type.</p>
         </div>
-        <h3 style={{ marginTop: 10 }}>Charts</h3>
-        <label className="field">
-          <span>Moving average on metric charts</span>
-          <select name="movingAverageDays" defaultValue={String(ctx.settings.movingAverageDays)}>
-            <option value="0">Off</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option>
-          </select>
-        </label>
-        <div><button className="btn primary">Save</button></div>
-      </form>
-      <div className="card">
-        <h2>Measurement definitions</h2>
-        <p className="small">Built-in body measurements cover height, weight, body fat, lean mass, neck, shoulders, chest, waist, hips and both arms, forearms, thighs and calves. Each is linked to a region of the dashboard figure.</p>
-        <p className="small">Add your own (e.g. wrist, ankle) on the <Link href="/body">Body measurements</Link> page.</p>
-        <p className="small muted">Health metric types and their aggregation rules are defined in <code>src/lib/metrics/catalog.ts</code>; see <code>docs/architecture.md</code> to add a new type.</p>
       </div>
     </div>
   );

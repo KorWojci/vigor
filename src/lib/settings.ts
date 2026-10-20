@@ -1,28 +1,13 @@
 import { z } from "zod";
 import type { DB } from "./db";
 import { isValidTimeZone, RANGE_PRESETS } from "./time";
+import { DEFAULT_LAYOUT, layoutFromLegacyTiles, normalizeLayout, ZONES, type DashboardLayout } from "./dashboard-layout";
 
 /**
  * Application settings, stored as JSON values in the `settings` table.
  * Each key has a schema and a default; invalid stored values fall back to the default.
  */
 const rangeKeys = RANGE_PRESETS.map((r) => r.key) as [string, ...string[]];
-
-export const DASHBOARD_TILES = [
-  { key: "weight", label: "Body weight" },
-  { key: "body_fat", label: "Body fat" },
-  { key: "steps", label: "Steps" },
-  { key: "active_energy", label: "Active energy" },
-  { key: "exercise", label: "Exercise minutes" },
-  { key: "sleep", label: "Sleep" },
-  { key: "resting_hr", label: "Resting heart rate" },
-  { key: "hrv", label: "Heart rate variability" },
-  { key: "vo2max", label: "VO₂ max" },
-  { key: "spo2", label: "Blood oxygen" },
-  { key: "nutrition", label: "Nutrition" },
-  { key: "training", label: "Training" },
-] as const;
-export type DashboardTileKey = (typeof DASHBOARD_TILES)[number]["key"];
 
 export const settingsSchema = {
   profile: z
@@ -39,9 +24,15 @@ export const settingsSchema = {
     .default(process.env.TZ && isValidTimeZone(process.env.TZ) ? process.env.TZ : "UTC"),
   theme: z.enum(["system", "light", "dark"]).default("system"),
   defaultRange: z.enum(rangeKeys).default("30d"),
+  /** @deprecated superseded by dashboardLayout; still read when no layout has been saved. */
   dashboardTiles: z
     .array(z.string())
     .default(["weight", "body_fat", "steps", "active_energy", "sleep", "resting_hr", "hrv", "vo2max", "nutrition", "training"]),
+  /** Widget placement on the dashboard (see src/lib/dashboard-layout.ts). */
+  dashboardLayout: z
+    .object(Object.fromEntries(ZONES.map((zn) => [zn, z.array(z.string()).max(50)])) as Record<(typeof ZONES)[number], z.ZodArray<z.ZodString>>)
+    .transform(normalizeLayout)
+    .optional(),
   movingAverageDays: z.union([z.literal(0), z.literal(7), z.literal(14), z.literal(30)]).default(7),
   syncIntervalMinutes: z.number().int().min(15).max(24 * 60).default(60),
 } as const;
@@ -77,4 +68,12 @@ export function setSetting<K extends SettingKey>(db: DB, key: K, value: Settings
     JSON.stringify(parsed),
   );
   return parsed;
+}
+
+/** The dashboard layout: the saved one, else derived from the legacy tile list, else the default. */
+export function getDashboardLayout(db: DB): DashboardLayout {
+  const saved = getSetting(db, "dashboardLayout");
+  if (saved) return saved;
+  const legacy = db.prepare("SELECT 1 FROM settings WHERE key = 'dashboardTiles'").get();
+  return legacy ? layoutFromLegacyTiles(getSetting(db, "dashboardTiles")) : normalizeLayout(DEFAULT_LAYOUT);
 }

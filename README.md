@@ -4,7 +4,7 @@
 
 Vigor collects Apple Health data from your iPhone, Hevy workout exports, nutrition logged by other apps, and body measurements you enter by hand. It shows them together around an original line drawing inspired by Leonardo da Vinci's *Vitruvian Man*. Everything runs on your own machine: one container and one SQLite file, with no cloud services and no telemetry.
 
-- **Dashboard.** Weight, body composition, activity, sleep, heart rate, HRV, VO₂ max, nutrition and training. Each value shows its unit, date and source, and its trend against the previous period. Body regions on the figure link to their history.
+- **Dashboard.** Weight, body composition, activity, sleep, heart rate, HRV, VO₂ max, nutrition and training. Each value shows its unit, date and source, and its trend against the previous period. Body regions on the figure link to their history. Use **Customize** to choose which widgets appear and drag them to the left or right of the figure, below it, or into a hidden list.
 - **Health metrics.** 34 metric types with correct aggregation: daily totals without double counting across devices, daily averages with min/max, latest readings, and sleep stages merged across sources. Missing data is shown as missing, never as zero.
 - **Apple Health sync.** An authenticated, idempotent, incremental import API. It handles corrections, deletions, late samples and retries. It works with a native iPhone companion app (hourly target) or with Apple Shortcuts.
 - **Training.** Imports Hevy CSV exports. For each exercise it shows sets, estimated 1RM, volume, personal records and progress charts. It supports weighted, bodyweight, assisted, duration and distance exercises, and links Hevy workouts with the matching Apple Health workouts.
@@ -135,7 +135,7 @@ Set these through environment variables (`.env` for Compose; a Secret or env var
 | `VIGOR_STALE_AFTER_HOURS` | `3` | When the dashboard flags Apple Health data as outdated |
 | `TZ` | `UTC` | Default time zone until one is chosen in Settings |
 
-Everything else is in the in-app **Settings**: profile, units, time zone, theme, default range, dashboard tiles, chart options, tokens and sync interval.
+Everything else is in the in-app **Settings**: profile, units, time zone, theme, default range, dashboard layout, chart options, tokens and sync interval.
 
 ## Database and migrations
 

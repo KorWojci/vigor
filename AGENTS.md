@@ -37,6 +37,7 @@ Tests use in-memory SQLite (`tests/helpers.ts → testDb()`). Put new tests in `
 | Dashboard figure | `src/components/VitruvianFigure.tsx` (original procedural SVG — do not replace it with a reproduction of the artwork) |
 | Styles / theme tokens | `src/app/globals.css` (CSS variables, light and dark) |
 | Settings schema | `src/lib/settings.ts` |
+| Dashboard widgets & layout | `src/lib/dashboard-layout.ts` (pure, tested), editor `src/components/DashboardEditor.tsx` |
 
 ## Known gaps / good next tasks
 

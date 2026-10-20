@@ -8,7 +8,7 @@ import { createBackup, deleteBackup, deleteData, restoreFromBuffer, type DeleteS
 import { removeDemoData, seedDemoData } from "@/lib/demo";
 import { db, requireUser } from "@/lib/server/context";
 import { log } from "@/lib/server/log";
-import { DASHBOARD_TILES, getSetting, setSetting, type Settings } from "@/lib/settings";
+import { getSetting, setSetting, type Settings } from "@/lib/settings";
 import { HevyFormatError, importHevyCsv } from "@/lib/training/hevy-import";
 import { mergeExercises } from "@/lib/training/repo";
 
@@ -88,11 +88,9 @@ export async function saveAppSettingsAction(form: FormData) {
 export async function saveMetricsSettingsAction(form: FormData) {
   await requireUser();
   const database = db();
-  const tiles = form.getAll("tiles").map(String).filter((t) => DASHBOARD_TILES.some((d) => d.key === t));
-  setSetting(database, "dashboardTiles", tiles);
   const ma = Number(form.get("movingAverageDays"));
   setSetting(database, "movingAverageDays", ([0, 7, 14, 30].includes(ma) ? ma : 7) as Settings["movingAverageDays"]);
-  done("metrics", "Dashboard and chart settings saved.");
+  done("metrics", "Chart settings saved.");
 }
 
 export async function saveSyncSettingsAction(form: FormData) {
