@@ -123,6 +123,19 @@ export function normaliseSleepCategory(raw: string): SleepCategory | null {
   return SLEEP_ALIASES[k] ?? null;
 }
 
+/**
+ * Parses a number sent as text. Accepts "1234", "80.4" and "80,4" (comma decimal locales) and
+ * ignores spaces used as thousands separators. Returns null for anything else, including
+ * "1,234" / "1.234,5", where the separator meaning depends on the phone's locale.
+ */
+export function parseNumericText(raw: string): number | null {
+  const t = raw.trim().replace(/[\s\u00a0\u202f]/g, "");
+  if (!/^-?\d+(?:[.,]\d+)?$/.test(t)) return null;
+  if (/^-?\d+,\d{3}$/.test(t)) return null; // thousands separator or decimal comma — ambiguous
+  const n = Number(t.replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Validates and normalises one sample. Returns a string reason when it must be rejected. */
 export function normaliseSample(raw: unknown, source: string, now = Date.now()): NormalisedSample | string {
   const parsed = sampleSchema.safeParse(raw);
@@ -144,16 +157,20 @@ export function normaliseSample(raw: unknown, source: string, now = Date.now()):
   let value: number | null;
   let category: string | null = null;
   if (def.aggregation === "sleep") {
-    const cat = normaliseSleepCategory(s.category ?? "");
+    // Shortcuts' "Value" of a sleep sample is the stage label, so accept it from `value` too.
+    const label = s.category ?? (typeof s.value === "string" ? s.value : "");
+    const cat = normaliseSleepCategory(label);
     if (!cat) return `sleep_analysis requires category in: ${SLEEP_CATEGORIES.join(", ")}`;
     if (endMs - startMs > 24 * 3600_000) return "sleep sample longer than 24 hours";
     category = cat;
     value = (endMs - startMs) / 60_000;
   } else {
-    if (s.value === null || s.value === undefined) return "value is required";
+    if (s.value === null || s.value === undefined || s.value === "") return "value is required";
+    const raw = typeof s.value === "string" ? parseNumericText(s.value) : s.value;
+    if (raw === null) return `value '${s.value}' is not an unambiguous number; send it as a JSON number`;
     const unit = s.unit ?? "";
-    let converted = toCanonical(s.value, unit, def.unit);
-    if (converted === null && unit === "" && def.unit === "count") converted = s.value;
+    let converted = toCanonical(raw, unit, def.unit);
+    if (converted === null && unit === "" && def.unit === "count") converted = raw;
     if (converted === null) return `unit '${unit}' cannot be converted to ${def.unit} for ${def.key}`;
     if (converted < 0 && def.unit !== "°c") return "negative value";
     // HealthKit percent quantities are fractions (0–1) while Shortcuts renders them as 0–100.
@@ -164,7 +181,8 @@ export function normaliseSample(raw: unknown, source: string, now = Date.now()):
     }
     if (def.unit === "%" && converted > 100) return "percentage above 100";
     value = converted;
-    category = s.category ?? null;
+    // Only sleep is a category type; a generic Shortcut loop may fill `category` for every type.
+    category = null;
   }
 
   const sourceName = s.sourceName?.trim() || null;

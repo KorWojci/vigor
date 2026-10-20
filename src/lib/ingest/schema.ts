@@ -58,7 +58,9 @@ const metadata = z.record(z.union([z.string().max(500), z.number(), z.boolean(),
 
 export const sampleSchema = z.object({
   type: z.string().min(1).max(64),
-  value: z.number().finite().optional().nullable(),
+  // A string is accepted for clients that cannot type their JSON (Shortcuts): a plain number
+  // ("80.4", "80,4") or, for category types, the category label. See normaliseSample.
+  value: z.union([z.number().finite(), z.string().max(64)]).optional().nullable(),
   unit: z.string().max(32).optional().default(""),
   category: z.string().max(64).optional().nullable(),
   startAt: timestamp,

@@ -41,9 +41,9 @@ Content type: `application/json`. Maximum body size: `VIGOR_MAX_IMPORT_BYTES` (d
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `type` | string | yes | A metric key from the table below. |
-| `value` | number | yes, except sleep | In `unit`. |
+| `value` | number | yes, except sleep | In `unit`. Text is accepted for clients that can't type their JSON (Shortcuts): `"80.4"`, `"80,4"`, `"1 234"`. Ambiguous text such as `"1,234"` is rejected. For sleep, a text `value` is used as the `category` when `category` is absent. |
 | `unit` | string | yes, except count/sleep | Converted to the canonical unit. |
-| `category` | string | sleep only | `in_bed`, `awake`, `asleep_unspecified`, `asleep_core`, `asleep_deep`, `asleep_rem`. Also accepted: Shortcuts labels (`In Bed`, `Core`, `Deep`, `REM`, `Asleep`, `Awake`) and HealthKit names (`HKCategoryValueSleepAnalysisAsleepREM`). |
+| `category` | string | sleep only (ignored for other types) | `in_bed`, `awake`, `asleep_unspecified`, `asleep_core`, `asleep_deep`, `asleep_rem`. Also accepted: Shortcuts labels (`In Bed`, `Core`, `Deep`, `REM`, `Asleep`, `Awake`) and HealthKit names (`HKCategoryValueSleepAnalysisAsleepREM`). |
 | `startAt` | timestamp | yes | |
 | `endAt` | timestamp | no | Defaults to `startAt`. Must not be before it. |
 | `sourceName` | string | no | The app or device that recorded the sample. Recommended: it is used to avoid double counting. |

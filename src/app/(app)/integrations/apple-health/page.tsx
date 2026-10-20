@@ -161,21 +161,22 @@ export default async function AppleHealthPage() {
               <strong>Server address.</strong> Find the LAN IP as described on the left. In the Shortcut you will call <code>{isLocalhost ? "http://<ip>:3000" : base}/api/v1/health/import</code>.
             </li>
             <li>
-              <strong>Read samples.</strong> Add <em>Find Health Samples</em>: Type = e.g. <em>Steps</em>, <em>Start Date is in the last 6 hours</em>, no limit. Repeat the
-              action for each type you want (see the type table below). Allow Shortcuts to read those Health types when asked.
+              <strong>List the types once.</strong> Add a <em>Dictionary</em> <code>Types</code> mapping each Vigor key (e.g. <code>step_count</code>) to the Health
+              type name exactly as the <em>Find Health Samples</em> picker shows it on your phone (e.g. <em>Steps</em>). See the type table below.
             </li>
             <li>
-              <strong>Build the samples list.</strong> Add <em>Repeat with Each</em> over the found samples. Inside, use <em>Get Details of Health Sample</em> for Value, Unit,
-              Start Date, End Date and Source; format dates with <em>Format Date → ISO 8601</em> (include time). Build a <em>Dictionary</em> with keys
-              <code>type</code> (the Vigor key, e.g. <code>step_count</code>), <code>value</code>, <code>unit</code>, <code>startAt</code>, <code>endAt</code>,
-              <code>sourceName</code> and <em>Add to Variable</em> <code>Samples</code>. For sleep, put the sample’s value (Core, Deep, REM, Awake, In Bed) in
-              <code>category</code> instead of <code>value</code>.
+              <strong>One loop for all types.</strong> <em>Repeat with Each</em> key in <code>Types</code>: set <code>Key</code>, then <em>Find Health Samples</em> with
+              Type = <code>Types[Key]</code>, <em>Start Date is in the last 6 hours</em>, no limit. Loop over the results and, with <em>Get Details of Health Sample</em>
+              and <em>Format Date → ISO 8601</em>, build one <em>Dictionary</em> per sample: <code>type</code> = <code>Key</code>, <code>value</code> (Number) and
+              <code>category</code> (Text) both = the sample’s Value, plus <code>unit</code>, <code>startAt</code>, <code>endAt</code>, <code>sourceName</code>, then
+              <em>Add to Variable</em> <code>Samples</code>. The same row works for sleep (Vigor reads the stage label from <code>category</code>). If the search found
+              anything, also add <code>{"{"}type: Key, startAt: 6 hours ago, endAt: now{"}"}</code> to <code>Windows</code>.
             </li>
             <li>
               <strong>Send it.</strong> Add <em>Get Contents of URL</em>: Method <em>POST</em>; Headers <code>Authorization</code> = <code>Bearer &lt;token&gt;</code> and
               <code>Content-Type</code> = <code>application/json</code>; Request Body <em>JSON</em> with <code>schemaVersion</code> (Number 1), <code>source</code> (Text
-              <code>apple-shortcuts</code>), <code>syncId</code> (Text: the current date formatted as ISO 8601 — unique per run), <code>generatedAt</code> (same date) and
-              <code>samples</code> (Array → variable <code>Samples</code>). Never put the token in the URL.
+              <code>apple-shortcuts</code>), <code>syncId</code> (Text: the current date formatted as ISO 8601 — unique per run), <code>generatedAt</code> (same date),
+              <code>samples</code> (Array → variable <code>Samples</code>) and <code>replaceWindows</code> (Array → variable <code>Windows</code>). Never put the token in the URL.
             </li>
             <li>
               <strong>Schedule.</strong> Shortcuts → Automation → <em>+</em> → <em>Time of Day</em> → choose a time, <em>Daily</em>, <em>Run Immediately</em>, and select the

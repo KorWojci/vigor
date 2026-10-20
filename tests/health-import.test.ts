@@ -144,6 +144,35 @@ describe("health import", () => {
     expect(res.summary).toMatchObject({ accepted: 1, rejected: 1 });
   });
 
+  it("accepts the uniform rows of a single-loop Shortcut", () => {
+    const db = testDb();
+    // Every row carries the Health "Value" in both `value` and `category`, typed or as text.
+    const row = (type: string, v: number | string, unit: string, startAt: string, endAt = startAt) => ({
+      type, value: v, category: String(v), unit, startAt, endAt, sourceName: "SYNTHETIC Watch",
+    });
+    const res = doImport(
+      db,
+      envelope({
+        samples: [
+          row("step_count", 842, "count", "2026-10-20T07:00:00+02:00", "2026-10-20T07:30:00+02:00"),
+          row("body_mass", "80,4", "kg", "2026-10-20T07:05:00+02:00"),
+          row("distance_walking_running", " 1.25 ", "km", "2026-10-20T07:00:00+02:00", "2026-10-20T07:30:00+02:00"),
+          row("sleep_analysis", "Deep", "", "2026-10-20T01:00:00+02:00", "2026-10-20T02:00:00+02:00"),
+          row("step_count", "1,234", "count", "2026-10-20T06:00:00+02:00", "2026-10-20T06:30:00+02:00"),
+        ],
+      }),
+    );
+    expect(res.summary).toMatchObject({ accepted: 4, rejected: 1 });
+    expect(res.rejections[0].reason).toMatch(/not an unambiguous number/);
+    const rows = db.prepare("SELECT type, value, category FROM health_samples ORDER BY id").all();
+    expect(rows).toEqual([
+      { type: "step_count", value: 842, category: null },
+      { type: "body_mass", value: 80.4, category: null },
+      { type: "distance_walking_running", value: 1250, category: null },
+      { type: "sleep_analysis", value: 60, category: "asleep_deep" },
+    ]);
+  });
+
   it("rejects malformed envelopes as a whole", () => {
     const db = testDb();
     expect(() => importHealthPayload(db, { schemaVersion: 2 }, { rawBody: "{}" })).toThrow(ImportValidationError);
