@@ -262,6 +262,48 @@ export default async function AppleHealthPage() {
               the import pipeline: 3 received, 3 accepted, 0 rejected. Details: <code>docs/apple-health-shortcuts.md</code> and <code>docs/import-api.md</code>.
             </p>
           </details>
+          <details className="disclosure" style={{ marginTop: 8 }}>
+            <summary>Mixed batch: today plus older days, with <code>replaceToday</code></summary>
+            <p className="small muted">
+              A batch can mix today&rsquo;s samples with older ones (for example a backfill run that also picks up today). Older samples are
+              added, or skipped if already stored, and never cause a deletion. Today is replaced only for types that have a sample from today in the
+              batch. Here that is <code>step_count</code> and <code>dietary_protein</code>; <code>body_mass</code> only has older weigh-ins, so the
+              weight already stored for today stays.
+            </p>
+            <pre><code>{`{
+  "schemaVersion": 1,
+  "source": "apple-shortcuts",
+  "syncId": "2026-10-21T20:15:00+02:00",
+  "generatedAt": "2026-10-21T20:15:00+02:00",
+  "samples": [
+    { "type": "step_count", "value": 9480, "category": "9480", "unit": "count",
+      "startAt": "2026-10-21T00:00:00+02:00", "endAt": "2026-10-21T20:15:00+02:00", "sourceName": "Apple Watch" },
+    { "type": "step_count", "value": 11230, "category": "11230", "unit": "count",
+      "startAt": "2026-10-18T00:00:00+02:00", "endAt": "2026-10-18T23:59:00+02:00", "sourceName": "Apple Watch" },
+    { "type": "body_mass", "value": 85.0, "category": "85", "unit": "kg",
+      "startAt": "2026-10-14T07:00:00+02:00", "endAt": "2026-10-14T07:00:00+02:00", "sourceName": "Health Scale" },
+    { "type": "body_mass", "value": 84.8, "category": "84.8", "unit": "kg",
+      "startAt": "2026-10-17T07:00:00+02:00", "endAt": "2026-10-17T07:00:00+02:00", "sourceName": "Health Scale" },
+    { "type": "dietary_protein", "value": 96, "category": "96", "unit": "g",
+      "startAt": "2026-10-21T19:40:00+02:00", "endAt": "2026-10-21T19:40:00+02:00", "sourceName": "MyFitnessPal" }
+  ],
+  "replaceToday": true
+}`}</code></pre>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Type</th><th>Today in batch?</th><th>Effect</th></tr></thead>
+                <tbody>
+                  <tr><td><code>step_count</code></td><td>yes</td><td className="small">today replaced: the noon run&rsquo;s 4,200 steps are removed, 9,480 kept; Oct 18 added</td></tr>
+                  <tr><td><code>dietary_protein</code></td><td>yes</td><td className="small">today replaced by this batch&rsquo;s entries</td></tr>
+                  <tr><td><code>body_mass</code></td><td>no</td><td className="small">Oct 14 and Oct 17 added; this morning&rsquo;s 84.1 kg from an earlier run stays</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="tiny faint">
+              Validated against the import pipeline after an earlier same-day run (84.1 kg weight, 4,200 steps): 5 received, 5 accepted, 0 rejected,
+              1 deleted (the stale steps). To clean up edits on older days, send <code>replaceWindows</code> for those days instead (at most 62 days each).
+            </p>
+          </details>
           <p className="small muted" style={{ marginTop: 10 }}>A complete walkthrough is in <code>docs/apple-health-shortcuts.md</code>.</p>
         </div>
       </section>
