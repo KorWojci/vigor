@@ -173,10 +173,13 @@ export default async function AppleHealthPage() {
               anything, also add <code>{"{"}type: Key, startAt: 6 hours ago, endAt: now{"}"}</code> to <code>Windows</code>.
             </li>
             <li>
-              <strong>Send it.</strong> Add <em>Get Contents of URL</em>: Method <em>POST</em>; Headers <code>Authorization</code> = <code>Bearer &lt;token&gt;</code> and
-              <code>Content-Type</code> = <code>application/json</code>; Request Body <em>JSON</em> with <code>schemaVersion</code> (Number 1), <code>source</code> (Text
-              <code>apple-shortcuts</code>), <code>syncId</code> (Text: the current date formatted as ISO 8601 — unique per run), <code>generatedAt</code> (same date),
-              <code>samples</code> (Array → variable <code>Samples</code>) and <code>replaceWindows</code> (Array → variable <code>Windows</code>). Never put the token in the URL.
+              <strong>Send it.</strong> Build one <em>Dictionary</em> <code>Body</code> with <code>schemaVersion</code> (Number 1), <code>source</code> (Text
+              <code>apple-shortcuts</code>), <code>syncId</code> and <code>generatedAt</code> (Text: the current date as ISO 8601), <code>samples</code> (List →
+              <code>Samples</code>) and <code>replaceWindows</code> (List → <code>Windows</code>). Put <code>Body</code> alone into a <em>Text</em> action
+              (<code>BodyJSON</code>), then <em>Get Contents of URL</em>: Method <em>POST</em>, Headers <code>Authorization</code> = <code>Bearer &lt;token&gt;</code> and
+              <code>Content-Type</code> = <code>application/json</code>, Request Body <em>File</em> → <code>BodyJSON</code>. Don&rsquo;t put <code>Body</code> into a
+              single field of the <em>JSON</em> body type: that sends <code>{"{"}&quot;Body&quot;: …{"}"}</code> and fails with <code>source: Required</code>. Never put the
+              token in the URL.
             </li>
             <li>
               <strong>Schedule.</strong> Shortcuts → Automation → <em>+</em> → <em>Time of Day</em> → choose a time, <em>Daily</em>, <em>Run Immediately</em>, and select the

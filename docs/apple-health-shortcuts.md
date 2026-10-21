@@ -28,7 +28,7 @@ Vigor Sync
 │   ├─ Repeat with Each  sample
 │   │   └─ Dictionary { type, value, category, unit, startAt, endAt, sourceName } → Samples
 │   └─ If found anything → { type, startAt: WindowStart, endAt: Now } → Windows
-├─ Get Contents of URL  POST { …, samples: Samples, replaceWindows: Windows } (step 4)
+├─ Dictionary Body { …, samples, replaceWindows } → Text → Get Contents of URL (File body) (step 4)
 └─ Show Result                                    (step 5)
 ```
 
@@ -111,20 +111,26 @@ Units such as `count`, `kcal`, `km`, `mi`, `count/min`, `ms`, `kg`, `lb`, `%`, `
 
 ### 4. Build the request
 
-After the outer loop, add **Get Contents of URL**:
+After the outer loop, build the whole request body as **one Dictionary**, turn it into text, and send that text as the raw body:
 
-- URL: `http://<address>:3000/api/v1/health/import`
-- Method: **POST**
-- Headers:
-  - `Authorization` → variable `Auth`
-  - `Content-Type` → `application/json`
-- Request Body: **JSON**
-  - `schemaVersion` (Number) `1`
-  - `source` (Text) `apple-shortcuts`
-  - `syncId` (Text) `Now` (unique per run)
-  - `generatedAt` (Text) `Now`
-  - `samples` (Array) → variable `Samples`
-  - `replaceWindows` (Array) → variable `Windows`
+1. **Dictionary** → *Set Variable* `Body`:
+   - `schemaVersion` (Number) `1`
+   - `source` (Text) `apple-shortcuts`
+   - `syncId` (Text) `Now` (unique per run)
+   - `generatedAt` (Text) `Now`
+   - `samples` (List) → variable `Samples`
+   - `replaceWindows` (List) → variable `Windows`
+2. **Text** whose content is *only* the `Body` variable (nothing else in the field) → *Set Variable* `BodyJSON`. Shortcuts serializes a Dictionary to its JSON text when it is placed in a Text field.
+3. Optional while testing: **Quick Look** `BodyJSON`. This is exactly what will be sent.
+4. **Get Contents of URL**:
+   - URL: `http://<address>:3000/api/v1/health/import`
+   - Method: **POST**
+   - Headers: `Authorization` → variable `Auth`; `Content-Type` → `application/json`
+   - Request Body: **File** → variable `BodyJSON`
+
+**Don't send `Body` through the *JSON* request body type.** That editor is a list of named fields: putting the `Body` dictionary into one field sends `{"Body": {…}}` (or `{"": {…}}` with an empty key), so Vigor finds no `schemaVersion`, `source`, `syncId` or `generatedAt` at the top level and answers `422` with `source: Required`, `syncId: Required`, `generatedAt: Required`. If you prefer the *JSON* editor, give each of the six keys its **own** field instead of one combined dictionary.
+
+In the Dictionary action, the type for `samples` and `replaceWindows` is called **List**. Choose it, then select the variable as the value; don't add items with the inline “+”, which only builds a short literal list.
 
 **Never put the token in the URL.** All types go in this one request. A 6-hour window is far below the 10 MiB limit.
 
@@ -145,7 +151,7 @@ If you'd rather run this once or a few times a day than build 17 hourly automati
 - **Step 1:** skip the `WindowStart` *Adjust Date* action. You still need `Now` and `Auth`.
 - **Step 3.3:** change the *Find Health Samples* filter from *Start Date is in the last 6 hours* to **Start Date is today**.
 - **Step 3.5:** skip it — no `Windows` variable, no per-type dictionary, no *If* guard.
-- **Step 4:** drop the `replaceWindows` row from the request body. Add instead:
+- **Step 4:** in the `Body` dictionary, drop `replaceWindows` and add instead:
   - `replaceToday` (Boolean) `true`
 
 Every run re-sends and re-declares the *entire* day so far for every type that found anything, so there's no reliance on overlapping runs to catch up — run it once in the evening, or a few times through the day, and each run is self-contained. Vigor builds the replace window itself from `generatedAt`'s own time zone (the phone's zone when it built the request), spanning local midnight to that moment — see `replaceToday` in `docs/import-api.md`. The *If found anything* guard from step 3.5 isn't needed by hand here: Vigor already skips a type with zero samples this run (nothing to scope a window to), for the identical reason you'd build the guard for yourself.
@@ -177,8 +183,8 @@ Set **Settings → Integrations → Target interval** in Vigor to match your sch
 | --- | --- |
 | "Could not connect" | Phone on the same Wi-Fi; the URL uses the LAN IP and port; host firewall; `http://<ip>:3000/api/healthz` opens in Safari. |
 | `401` | `Authorization` must be exactly `Bearer <token>` with one space; the token is not revoked. |
-| `400` | Request Body must be *JSON*, not *Form*. |
-| `422` | The response lists `issues`. Usually a missing `schemaVersion`/`syncId`, or dates not formatted as ISO 8601. |
+| `400` | The body isn't JSON. Request Body must be *File* with the `BodyJSON` text (or *JSON*), not *Form*. |
+| `422` | The response lists `issues`. `source`/`syncId`/`generatedAt: Required` together means the body is wrapped in an extra key (see step 4). Otherwise usually dates not formatted as ISO 8601. |
 | `partial` with rejections | See Vigor → Apple Health sync → Import history → issues (e.g. a misspelled `type`). |
 | Runs at night send nothing | Expected: Health is locked. The morning run catches up if its window is long enough; consider a 10–12 h window for the first morning run. |
 | Duplicated totals | Vigor keeps the larger source per hour for activity types. If you also run the companion app, prefer one integration. |
