@@ -238,7 +238,7 @@ export default async function AppleHealthPage() {
               If the Shortcut&rsquo;s <em>Find Health Samples</em> filter is <em>Start Date is today</em> rather than <em>in the last 6 hours</em>, drop
               <code>replaceWindows</code> and <code>Windows</code> entirely and add <code>replaceToday: true</code> instead. Vigor then builds the replace
               window itself — local midnight (by <code>generatedAt</code>&rsquo;s own offset) through <code>generatedAt</code> — for every type that
-              returned a sample, exactly like the per-type <code>Windows</code> entries above, without the Shortcut having to build them. This run
+              has a sample from today in the batch (older samples are added but never trigger a deletion), exactly like the per-type <code>Windows</code> entries above, without the Shortcut having to build them. This run
               (an evening sync) sends the whole day so far for each type:
             </p>
             <pre><code>{`{

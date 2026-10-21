@@ -243,6 +243,27 @@ describe("health import", () => {
     expect(kept).toContain("stale-weight"); // body_mass had no explicit window — replaceToday did not fill one in
   });
 
+  it("replaceToday only replaces types that have a sample from today in the batch", () => {
+    const db = testDb();
+    const weight = (externalId: string | undefined, value: number, at: string) => ({
+      type: "body_mass", value, unit: "kg", startAt: at, sourceName: "Synthetic Scale", ...(externalId ? { externalId } : {}),
+    });
+    doImport(db, envelope({ samples: [weight("weight-today", 84.3, "2026-10-20T06:00:00Z"), steps("steps-today", 10, "2026-10-20T05:00:00Z", "2026-10-20T05:05:00Z")] }));
+
+    // Backfill-style batch: weight only from earlier days, steps from today.
+    const res = doImport(
+      db,
+      envelope({
+        samples: [weight(undefined, 85, "2026-10-14T06:00:00Z"), steps(undefined, 20, "2026-10-20T07:00:00Z", "2026-10-20T07:05:00Z")],
+        replaceToday: true,
+      }),
+    );
+    const kept = live(db).map((r) => r.external_id);
+    expect(kept).toContain("weight-today"); // weight had no sample from today in this batch — untouched
+    expect(kept).not.toContain("steps-today"); // steps did — today's steps replaced
+    expect(res.summary.deleted).toBe(1);
+  });
+
   it("startOfDayFor uses the timestamp's own offset, not UTC, to find local midnight", () => {
     expect(startOfDayFor("2026-10-20T08:00:00Z")).toBe(Date.parse("2026-10-20T00:00:00Z"));
     // 23:50 in +02:00 is still Oct 20 locally, even though in UTC it's already Oct 20 21:50 —

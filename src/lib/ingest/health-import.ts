@@ -384,11 +384,20 @@ export function importHealthPayload(db: DB, body: unknown, opts: ImportOptions):
   const apply = db.transaction(() => {
     const seenByType = new Map<string, Set<string>>();
 
+    // `replaceToday` window: local midnight (by `generatedAt`'s own offset) to `generatedAt`.
+    // Only used when the client sent no explicit replaceWindows at all.
+    const todayStartMs = env.replaceToday && env.replaceWindows.length === 0 ? startOfDayFor(env.generatedAt) : null;
+    const todayEndMs = todayStartMs === null ? null : parseTimestamp(env.generatedAt);
+    const typesWithTodaySamples = new Set<string>();
+
     env.samples.forEach((raw, index) => {
       const s = normaliseSample(raw, env.source, now);
       if (typeof s === "string") return reject("sample", index, s);
       if (!seenByType.has(s.type)) seenByType.set(s.type, new Set());
       seenByType.get(s.type)!.add(s.externalId);
+      if (todayStartMs !== null && todayEndMs !== null && s.startMs >= todayStartMs && s.startMs < todayEndMs) {
+        typesWithTodaySamples.add(s.type);
+      }
       const existing = findSample.get(s.externalId) as { id: number; content_hash: string; deleted_at: number | null } | undefined;
       const params = { ...s, derived: s.derived ? 1 : 0, source: env.source, runId, now };
       if (!existing) {
@@ -402,18 +411,13 @@ export function importHealthPayload(db: DB, body: unknown, opts: ImportOptions):
       }
     });
 
-    // `replaceToday`: if the client didn't declare any explicit replaceWindows, synthesize one
-    // per type that had at least one valid sample this run, spanning from local midnight (by
-    // `generatedAt`'s own offset) to `generatedAt`. An explicit `replaceWindows` always wins —
-    // this only fills in when the client omitted it entirely.
-    if (env.replaceWindows.length === 0 && env.replaceToday && seenByType.size > 0) {
-      const dayStartMs = startOfDayFor(env.generatedAt);
-      const generatedAtMs = parseTimestamp(env.generatedAt);
-      if (dayStartMs !== null && generatedAtMs !== null) {
-        const startAt = new Date(dayStartMs).toISOString();
-        const endAt = new Date(generatedAtMs).toISOString();
-        for (const type of seenByType.keys()) env.replaceWindows.push({ type, startAt, endAt });
-      }
+    // Declare today complete only for types that actually have a sample from today in this
+    // batch. A type present only through older samples (a backfill, or a mixed batch) is left
+    // alone, so its already-stored samples from today are never deleted by accident.
+    if (todayStartMs !== null && todayEndMs !== null && todayEndMs > todayStartMs) {
+      const startAt = new Date(todayStartMs).toISOString();
+      const endAt = new Date(todayEndMs).toISOString();
+      for (const type of typesWithTodaySamples) env.replaceWindows.push({ type, startAt, endAt });
     }
 
     env.workouts.forEach((raw, index) => {
