@@ -138,6 +138,20 @@ Add **Get Dictionary Value** `summary` from *Contents of URL* → **Show Result*
 
 `skipped` is normal: those samples were already sent by the previous, overlapping run.
 
+### Alternative: sync "today" instead of a rolling 6-hour window
+
+If you'd rather run this once or a few times a day than build 17 hourly automations, query the whole day instead of a short rolling window. It needs *less* building than the recipe above, not more — you drop `WindowStart` and `Windows` entirely:
+
+- **Step 1:** skip the `WindowStart` *Adjust Date* action. You still need `Now` and `Auth`.
+- **Step 3.3:** change the *Find Health Samples* filter from *Start Date is in the last 6 hours* to **Start Date is today**.
+- **Step 3.5:** skip it — no `Windows` variable, no per-type dictionary, no *If* guard.
+- **Step 4:** drop the `replaceWindows` row from the request body. Add instead:
+  - `replaceToday` (Boolean) `true`
+
+Every run re-sends and re-declares the *entire* day so far for every type that found anything, so there's no reliance on overlapping runs to catch up — run it once in the evening, or a few times through the day, and each run is self-contained. Vigor builds the replace window itself from `generatedAt`'s own time zone (the phone's zone when it built the request), spanning local midnight to that moment — see `replaceToday` in `docs/import-api.md`. The *If found anything* guard from step 3.5 isn't needed by hand here: Vigor already skips a type with zero samples this run (nothing to scope a window to), for the identical reason you'd build the guard for yourself.
+
+The only cost: payload size grows through the day as more samples accumulate (still trivial for anything but `heart_rate`, which can reach hundreds of samples by evening — still far under the 50,000-sample / 10 MiB limits, just slower for Shortcuts to build).
+
 ### If *Type* won't accept a variable
 
 The type is taken from a variable in step 3.3. If your iOS version won't let you pick a variable for *Type*, keep the single loop body and change only the query. Use one *Find Health Samples* per type, each followed by **Add to Variable** `Found` (all of them into the same variable). Then loop over `Found` once and, in the loop, take **Get Details of Health Sample → Type**. Look that name up in a reversed dictionary (Health name → Vigor key) to fill `type`. The replace window then can't be per type, so leave `replaceWindows` out: exact re-sends are still deduplicated.

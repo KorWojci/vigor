@@ -32,6 +32,7 @@ Content type: `application/json`. Maximum body size: `VIGOR_MAX_IMPORT_BYTES` (d
 | `workouts` | array | no | ≤ 2,000 items. |
 | `deleted` | array | no | ≤ 50,000 items: `{ "externalId": "…", "kind": "sample" \| "workout" }` (kind defaults to `sample`). |
 | `replaceWindows` | array | no | ≤ 200 items: `{ "type", "startAt", "endAt" }`. See below. |
+| `replaceToday` | boolean | no | Default `false`. See below — an alternative to building `replaceWindows` yourself. |
 | `cursors` | array | no | ≤ 200 items: `{ "scope": "…", "value": "opaque ≤ 64 KiB" }`. Stored only if the import succeeds. |
 
 **Timestamps** must be ISO 8601 with a UTC offset: `2026-10-20T08:00:00Z`, `2026-10-20T10:00:00+02:00`, or `2026-10-20 10:00:00 +0200` (as Shortcuts renders it). Timestamps without an offset are rejected rather than guessed.
@@ -89,6 +90,7 @@ Units are matched case-insensitively. The authoritative list is `src/lib/units.t
 - **Without `externalId`:** the id is `derived:` + SHA-256 of (source, type, category, start, end, value, sourceName). Exact re-sends are skipped. A *changed* value looks like a new sample, which is why id-less sources should declare replace windows.
 - **`deleted[]`:** soft-deletes by `externalId` (HealthKit `HKDeletedObject` UUIDs).
 - **`replaceWindows[]`:** declares that the payload contains *all* samples of `type` from this `source` with `startAt ≤ start < endAt`. Earlier samples from the same source in that window that are not in the payload are soft-deleted. Use it only when the client really sent everything in the window (e.g. a Shortcut with no result limit). Samples from other sources are never touched. Maximum window: 62 days.
+- **`replaceToday`:** a convenience for a client that always queries "today" rather than a rolling window (e.g. a Shortcut whose *Find Health Samples* filter is "Start Date is today" instead of "in the last N hours" — this needs no `WindowStart` variable and no per-type `Windows` list to build). When `true` **and `replaceWindows` is not sent at all**, the server builds one replace window per `type` that had at least one valid sample this request, spanning from local midnight to `generatedAt`. "Local" means the UTC offset `generatedAt` itself carries, not the server's time zone or UTC — a payload generated at `23:50+02:00` uses that day's midnight in `+02:00`, not in UTC. A type with zero samples this run gets no implicit window (nothing is inferred as "today's complete, empty state" for it — exactly like the per-type guard you'd build by hand for `replaceWindows`). If `replaceWindows` is present (even as a window for a different type), `replaceToday` is ignored entirely — an explicit window always wins and nothing is inferred alongside it.
 
 ### Response — `200 OK`
 

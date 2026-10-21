@@ -46,6 +46,10 @@ export const envelopeSchema = z.object({
     .max(200)
     .optional()
     .default([]),
+  // Convenience for clients that re-send everything from local midnight on every run (e.g. a
+  // Shortcut querying "today" instead of a rolling window): ignored if `replaceWindows` is given
+  // explicitly. See `applyDefaultTodayWindow` in health-import.ts.
+  replaceToday: z.boolean().optional().default(false),
   cursors: z
     .array(z.object({ scope: z.string().min(1).max(100), value: z.string().max(65_536) }))
     .max(200)

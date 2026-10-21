@@ -124,6 +124,20 @@ export function normaliseSleepCategory(raw: string): SleepCategory | null {
 }
 
 /**
+ * Start of the calendar day `timestamp` falls on, in the UTC offset `timestamp` itself carries
+ * (not the server's time zone) — e.g. "2026-10-21T23:50:00+02:00" → ms for "2026-10-21T00:00:00+02:00".
+ * Backs `replaceToday`: a client's "today" is whatever day it is where the client is, not in UTC.
+ */
+export function startOfDayFor(timestamp: string): number | null {
+  const ms = parseTimestamp(timestamp);
+  if (ms === null) return null;
+  const m = /([+-])(\d{2}):?(\d{2})$/.exec(timestamp.trim());
+  const offsetMin = m ? (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) : 0; // no match → "Z", offset 0
+  const localMs = ms + offsetMin * 60_000;
+  return Math.floor(localMs / 86_400_000) * 86_400_000 - offsetMin * 60_000;
+}
+
+/**
  * Parses a number sent as text. Accepts "1234", "80.4" and "80,4" (comma decimal locales) and
  * ignores spaces used as thousands separators. Returns null for anything else, including
  * "1,234" / "1.234,5", where the separator meaning depends on the phone's locale.
@@ -387,6 +401,20 @@ export function importHealthPayload(db: DB, body: unknown, opts: ImportOptions):
         summary.updated++;
       }
     });
+
+    // `replaceToday`: if the client didn't declare any explicit replaceWindows, synthesize one
+    // per type that had at least one valid sample this run, spanning from local midnight (by
+    // `generatedAt`'s own offset) to `generatedAt`. An explicit `replaceWindows` always wins —
+    // this only fills in when the client omitted it entirely.
+    if (env.replaceWindows.length === 0 && env.replaceToday && seenByType.size > 0) {
+      const dayStartMs = startOfDayFor(env.generatedAt);
+      const generatedAtMs = parseTimestamp(env.generatedAt);
+      if (dayStartMs !== null && generatedAtMs !== null) {
+        const startAt = new Date(dayStartMs).toISOString();
+        const endAt = new Date(generatedAtMs).toISOString();
+        for (const type of seenByType.keys()) env.replaceWindows.push({ type, startAt, endAt });
+      }
+    }
 
     env.workouts.forEach((raw, index) => {
       const w = normaliseWorkout(raw, env.source, now);

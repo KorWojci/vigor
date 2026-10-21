@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deleteSampleById, ImportValidationError, importHealthPayload } from "@/lib/ingest/health-import";
+import { deleteSampleById, ImportValidationError, importHealthPayload, startOfDayFor } from "@/lib/ingest/health-import";
 import { parseTimestamp } from "@/lib/ingest/schema";
 import { doImport, envelope, testDb } from "./helpers";
 
@@ -181,6 +181,77 @@ describe("health import", () => {
     expect(db.prepare("SELECT deleted_at FROM health_samples WHERE id = ?").get(id)).toMatchObject({ deleted_at: expect.any(Number) });
     expect(deleteSampleById(db, id)).toBe(false); // already gone — safe to retry
     expect(deleteSampleById(db, 999_999)).toBe(false); // unknown id
+  });
+
+  it("replaceToday fills in a per-type 'local midnight to generatedAt' window when replaceWindows is omitted", () => {
+    const db = testDb();
+    // Pre-existing data: a stale step_count sample earlier today, one from yesterday, and a
+    // body_mass sample today — none of these are sent again in the run below.
+    doImport(
+      db,
+      envelope({
+        samples: [
+          { ...steps("stale-today", 11, "2026-10-20T03:00:00Z", "2026-10-20T03:05:00Z") },
+          { ...steps("prev-day", 22, "2026-10-19T23:00:00Z", "2026-10-19T23:05:00Z") },
+          { type: "body_mass", value: 80, unit: "kg", startAt: "2026-10-20T04:00:00Z", externalId: "weight-today" },
+        ],
+      }),
+    );
+
+    doImport(db, envelope({ samples: [steps(undefined, 999, "2026-10-20T07:30:00Z", "2026-10-20T07:45:00Z")], replaceToday: true }));
+
+    const kept = live(db).map((r) => r.external_id);
+    expect(kept).not.toContain("stale-today"); // today, same type, not re-sent — replaced away
+    expect(kept).toContain("prev-day"); // yesterday — outside today's window
+    expect(kept).toContain("weight-today"); // different type — step_count's window doesn't touch it
+    expect(db.prepare("SELECT value FROM health_samples WHERE type = 'step_count' AND deleted_at IS NULL ORDER BY start_ms").all()).toEqual([
+      { value: 22 }, // prev-day, outside today's window — untouched
+      { value: 999 }, // the newly sent sample
+    ]);
+  });
+
+  it("replaceToday does nothing when the batch has no accepted samples (nothing to scope a window to)", () => {
+    const db = testDb();
+    doImport(db, envelope({ samples: [steps("a", 1, "2026-10-20T03:00:00Z", "2026-10-20T03:05:00Z")] }));
+    doImport(db, envelope({ samples: [], replaceToday: true }));
+    expect(live(db).map((r) => r.external_id)).toContain("a");
+  });
+
+  it("an explicit replaceWindows always wins over replaceToday", () => {
+    const db = testDb();
+    doImport(
+      db,
+      envelope({
+        samples: [
+          { ...steps("stale-steps", 11, "2026-10-20T03:00:00Z", "2026-10-20T03:05:00Z") },
+          { type: "body_mass", value: 80, unit: "kg", startAt: "2026-10-20T04:00:00Z", externalId: "stale-weight" },
+        ],
+      }),
+    );
+    // Sends a new sample of EACH type, declares an explicit window for step_count only, but also
+    // sets replaceToday — the explicit window must be used as-is; no implicit window for body_mass.
+    doImport(
+      db,
+      envelope({
+        samples: [steps(undefined, 999, "2026-10-20T07:30:00Z", "2026-10-20T07:45:00Z"), { type: "body_mass", value: 81, unit: "kg", startAt: "2026-10-20T07:50:00Z" }],
+        replaceWindows: [{ type: "step_count", startAt: "2026-10-20T00:00:00Z", endAt: "2026-10-20T08:00:00Z" }],
+        replaceToday: true,
+      }),
+    );
+    const kept = live(db).map((r) => r.external_id);
+    expect(kept).not.toContain("stale-steps"); // covered by the explicit window
+    expect(kept).toContain("stale-weight"); // body_mass had no explicit window — replaceToday did not fill one in
+  });
+
+  it("startOfDayFor uses the timestamp's own offset, not UTC, to find local midnight", () => {
+    expect(startOfDayFor("2026-10-20T08:00:00Z")).toBe(Date.parse("2026-10-20T00:00:00Z"));
+    // 23:50 in +02:00 is still Oct 20 locally, even though in UTC it's already Oct 20 21:50 —
+    // a naive UTC-day floor would (here, harmlessly) agree, so check a case where it wouldn't:
+    expect(startOfDayFor("2026-10-20T23:50:00+02:00")).toBe(Date.parse("2026-10-20T00:00:00+02:00"));
+    expect(startOfDayFor("2026-10-20T23:50:00+02:00")).not.toBe(Date.parse("2026-10-20T00:00:00Z"));
+    // 23:00 in -05:00 is Oct 21 04:00 UTC — the naive UTC-day floor would wrongly land on Oct 21.
+    expect(startOfDayFor("2026-10-20T23:00:00-05:00")).toBe(Date.parse("2026-10-20T00:00:00-05:00"));
+    expect(startOfDayFor("not a date")).toBeNull();
   });
 
   it("rejects malformed envelopes as a whole", () => {
