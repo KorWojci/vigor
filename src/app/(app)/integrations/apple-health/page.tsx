@@ -229,6 +229,36 @@ export default async function AppleHealthPage() {
               there. Validated against the import pipeline: 5 received, 5 accepted, 0 rejected.
             </p>
           </details>
+          <details className="disclosure" style={{ marginTop: 8 }}>
+            <summary>Alternative: querying &ldquo;today&rdquo; instead of a rolling window</summary>
+            <p className="small muted">
+              If the Shortcut&rsquo;s <em>Find Health Samples</em> filter is <em>Start Date is today</em> rather than <em>in the last 6 hours</em>, drop
+              <code>replaceWindows</code> and <code>Windows</code> entirely and add <code>replaceToday: true</code> instead. Vigor then builds the replace
+              window itself — local midnight (by <code>generatedAt</code>&rsquo;s own offset) through <code>generatedAt</code> — for every type that
+              returned a sample, exactly like the per-type <code>Windows</code> entries above, without the Shortcut having to build them. This run
+              (an evening sync) sends the whole day so far for each type:
+            </p>
+            <pre><code>{`{
+  "schemaVersion": 1,
+  "source": "apple-shortcuts",
+  "syncId": "2026-10-21T20:15:00+02:00",
+  "generatedAt": "2026-10-21T20:15:00+02:00",
+  "samples": [
+    { "type": "step_count", "value": 9480, "category": "9480", "unit": "count",
+      "startAt": "2026-10-21T00:00:00+02:00", "endAt": "2026-10-21T20:15:00+02:00", "sourceName": "Apple Watch" },
+    { "type": "body_mass", "value": 80.4, "category": "80.4", "unit": "kg",
+      "startAt": "2026-10-21T07:05:00+02:00", "endAt": "2026-10-21T07:05:00+02:00", "sourceName": "Health Scale" },
+    { "type": "dietary_protein", "value": 96, "category": "96", "unit": "g",
+      "startAt": "2026-10-21T19:40:00+02:00", "endAt": "2026-10-21T19:40:00+02:00", "sourceName": "MyFitnessPal" }
+  ],
+  "replaceToday": true
+}`}</code></pre>
+            <p className="tiny faint">
+              No <code>replaceWindows</code> key at all — that is what tells Vigor to infer one from <code>replaceToday</code>. If
+              <code>replaceWindows</code> is present, even for just one type, <code>replaceToday</code> is ignored for all of them. Validated against
+              the import pipeline: 3 received, 3 accepted, 0 rejected. Details: <code>docs/apple-health-shortcuts.md</code> and <code>docs/import-api.md</code>.
+            </p>
+          </details>
           <p className="small muted" style={{ marginTop: 10 }}>A complete walkthrough is in <code>docs/apple-health-shortcuts.md</code>.</p>
         </div>
       </section>
