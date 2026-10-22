@@ -40,6 +40,32 @@ describe("Hevy CSV import", () => {
     expect(importHevyCsv(db, withoutUpperB, { tz: TZ, removeMissing: true }).deleted).toBe(1);
   });
 
+  it("never removes workouts when rows could not be read", () => {
+    const db = testDb();
+    importHevyCsv(db, csv, { tz: TZ });
+    const unreadable = csv.replace(/\n"([^"]*)","[^"]*"/g, '\n"$1","not a date"');
+    const res = importHevyCsv(db, unreadable, { tz: TZ, removeMissing: true });
+    expect(res).toMatchObject({ workouts: 0, deleted: 0, removeSkipped: true });
+    expect(listWorkouts(db, 0, Date.now() * 2)).toHaveLength(3);
+  });
+
+  it("keeps workout identity when Hevy changes its date format, and revives removed ones", () => {
+    const db = testDb();
+    importHevyCsv(db, csv, { tz: TZ });
+    const ids = listWorkouts(db, 0, Date.now() * 2).map((w) => w.id).sort();
+    db.prepare("UPDATE workouts SET deleted_at = 1").run();
+    // "20 Oct 2026, 07:05" → "Oct 20, 2026 at 7:05 AM"
+    const reformatted = csv.replace(/"(\d{1,2}) ([A-Z][a-z]{2}) (\d{4}), (\d{2}):(\d{2})"/g, (_m, d, mon, y, h, min) => {
+      const hh = Number(h);
+      return `"${mon} ${Number(d)}, ${y} at ${hh % 12 || 12}:${min}\u202f${hh < 12 ? "AM" : "PM"}"`;
+    });
+    expect(reformatted).not.toBe(csv);
+    const res = importHevyCsv(db, reformatted, { tz: TZ, removeMissing: true });
+    expect(res).toMatchObject({ workouts: 3, accepted: 0, rejected: 0, deleted: 0 });
+    expect(listWorkouts(db, 0, Date.now() * 2).map((w) => w.id).sort()).toEqual(ids);
+    expect(importHevyCsv(db, reformatted, { tz: TZ })).toMatchObject({ skipped: 3 });
+  });
+
   it("computes history, e1RM and personal records", () => {
     const db = testDb();
     importHevyCsv(db, csv, { tz: TZ });
@@ -74,6 +100,8 @@ describe("Hevy timestamps", () => {
     expect(parseHevyTime("20 Oct 2026, 07:05", "UTC")).toBe(Date.parse("2026-10-20T07:05:00Z"));
     expect(parseHevyTime("20 Oct 2026, 07:05", "Europe/Warsaw")).toBe(Date.parse("2026-10-20T05:05:00Z"));
     expect(parseHevyTime("Oct 20, 2026 7:05 PM", "UTC")).toBe(Date.parse("2026-10-20T19:05:00Z"));
+    expect(parseHevyTime("Oct 22, 2026 at 6:43 AM", "UTC")).toBe(Date.parse("2026-10-22T06:43:00Z"));
+    expect(parseHevyTime("Oct 22, 2026 at 12:05\u202fPM", "UTC")).toBe(Date.parse("2026-10-22T12:05:00Z"));
     expect(parseHevyTime("2026-01-20 07:05:00", "Europe/Warsaw")).toBe(Date.parse("2026-01-20T06:05:00Z"));
     expect(parseHevyTime("nonsense", "UTC")).toBeNull();
   });

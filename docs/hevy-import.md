@@ -19,7 +19,7 @@ Hevy exports one row per set:
 ```
 
 - Imperial exports (`weight_lbs`, `distance_miles`) are converted to kg and m.
-- Accepted `start_time` formats: `20 Oct 2026, 07:05`, `Oct 20, 2026 7:05 PM`, `2026-10-20 07:05:00`, and ISO 8601 with an offset. Hevy writes **local time without a time zone**, so Vigor interprets it in the time zone from Settings → Application. Set it before importing.
+- Accepted `start_time` formats: `20 Oct 2026, 07:05` (iOS app export), `Oct 20, 2026 at 7:05 AM` (web export), `Oct 20, 2026 7:05 PM`, `2026-10-20 07:05:00`, and ISO 8601 with an offset. Hevy writes **local time without a time zone**, so Vigor interprets it in the time zone from Settings → Application. Set it before importing.
 - `set_type`: `normal`, `warmup`, `failure`, `dropset`. Warm-ups are shown but excluded from statistics.
 - Required columns: `title`, `start_time`, `exercise_title`. Rows with an unparseable time or no exercise are rejected individually.
 
@@ -27,10 +27,10 @@ A synthetic example is in [`samples/hevy-workouts-synthetic.csv`](../samples/hev
 
 ## Duplicate handling
 
-- A workout's identity is its **title + start time**. Re-importing an export, or a newer export containing older workouts, never creates duplicates:
+- A workout's identity is its **title + start time** (the parsed instant, so exports from the iOS app and the web, which format dates differently, match each other). Re-importing an export, or a newer export containing older workouts, never creates duplicates:
   - identical content → *unchanged*;
   - changed sets, notes or end time → *updated* (the workout's exercises and sets are replaced).
-- **Remove Hevy workouts that are not in this export:** optional. Workouts deleted in Hevy disappear from Vigor. Only use it with a *complete* export.
+- **Remove Hevy workouts that are not in this export:** optional. Workouts deleted in Hevy disappear from Vigor. Only use it with a *complete* export. It is skipped automatically when any row of the file could not be read.
 - Renaming a workout or changing its start time in Hevy makes it a new workout. Use the remove option above to clean up the old copy.
 - Hevy can also write workouts to Apple Health. When an Apple Health workout overlaps a Hevy workout by more than half its duration, Vigor shows them as one workout: sets from Hevy, energy and heart rate from Apple Health.
 

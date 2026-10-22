@@ -19,9 +19,10 @@ export const HEVY_SOURCE = "hevy";
 
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
 
-/** Parses Hevy timestamps: "20 Oct 2026, 07:05", "Oct 20, 2026 7:05 AM", "2026-10-20 07:05:00" or ISO with offset. */
+/** Parses Hevy timestamps: "20 Oct 2026, 07:05", "Oct 20, 2026 7:05 AM", "Oct 20, 2026 at 7:05 AM", "2026-10-20 07:05:00" or ISO with offset. */
 export function parseHevyTime(raw: string, tz: string): number | null {
-  const s = raw.trim();
+  // Newer exports write "Oct 22, 2026 at 6:43 AM", sometimes with a narrow no-break space before AM/PM.
+  const s = raw.replace(/[\u00a0\u202f]/g, " ").trim().replace(/\s+at\s+/i, " ");
   if (!s) return null;
   if (/T.*(Z|[+-]\d{2}:?\d{2})$/.test(s)) {
     const ms = Date.parse(s);
@@ -65,6 +66,8 @@ export interface HevyImportSummary {
   skipped: number;
   rejected: number;
   deleted: number;
+  /** "Remove missing" was requested but not applied because some rows could not be read. */
+  removeSkipped: boolean;
   exercisesCreated: number;
   rowErrors: { row: number; reason: string }[];
 }
@@ -167,7 +170,7 @@ export function importHevyCsv(
       .prepare("INSERT INTO import_runs (kind, source, sync_id, status, started_at, payload_bytes) VALUES ('hevy', 'hevy-csv', ?, 'failed', ?, ?)")
       .run(opts.fileName ?? null, now, Buffer.byteLength(text)).lastInsertRowid,
   );
-  const summary: HevyImportSummary = { importRunId: runId, workouts: 0, accepted: 0, updated: 0, skipped: 0, rejected: 0, deleted: 0, exercisesCreated: 0, rowErrors: [] };
+  const summary: HevyImportSummary = { importRunId: runId, workouts: 0, accepted: 0, updated: 0, skipped: 0, rejected: 0, deleted: 0, removeSkipped: false, exercisesCreated: 0, rowErrors: [] };
 
   try {
     const { workouts, rowErrors } = parseHevyCsv(text, opts.tz);
@@ -179,6 +182,8 @@ export function importHevyCsv(
 
     db.transaction(() => {
       const findWorkout = db.prepare("SELECT id, content_hash, deleted_at FROM workouts WHERE external_id = ?");
+      // Same workout imported earlier under an id built from a differently formatted start_time.
+      const findSame = db.prepare("SELECT id, content_hash, deleted_at FROM workouts WHERE source = ? AND title = ? AND start_ms = ? ORDER BY deleted_at IS NOT NULL LIMIT 1");
       const insertWe = db.prepare(
         "INSERT INTO workout_exercises (workout_id, exercise_id, position, source_title, superset_id, notes) VALUES (?, ?, ?, ?, ?, ?)",
       );
@@ -188,10 +193,16 @@ export function importHevyCsv(
       );
       const seen = new Set<string>();
       for (const w of workouts) {
-        const externalId = "hevy:" + hash([w.title, w.startRaw]).slice(0, 40);
+        // Identity is title + parsed start instant, so a change in Hevy's date format doesn't create new workouts.
+        const externalId = "hevy:" + hash([w.title, w.startMs]).slice(0, 40);
         seen.add(externalId);
-        const contentHash = hash(w);
-        const existing = findWorkout.get(externalId) as { id: number; content_hash: string; deleted_at: number | null } | undefined;
+        const contentHash = hash({ ...w, startRaw: undefined, key: externalId });
+        type Existing = { id: number; content_hash: string; deleted_at: number | null };
+        let existing = findWorkout.get(externalId) as Existing | undefined;
+        if (!existing) {
+          existing = (findWorkout.get("hevy:" + hash([w.title, w.startRaw]).slice(0, 40)) ?? findSame.get(HEVY_SOURCE, w.title, w.startMs)) as Existing | undefined;
+          if (existing) db.prepare("UPDATE workouts SET external_id = ? WHERE id = ?").run(externalId, existing.id);
+        }
         if (existing && existing.content_hash === contentHash && existing.deleted_at === null) {
           summary.skipped++;
           continue;
@@ -235,7 +246,9 @@ export function importHevyCsv(
           for (const s of ex.sets) insertSet.run(weId, s.index, s.setType, s.weightKg, s.reps, s.distanceM, s.durationS, s.rpe ?? null);
         });
       }
-      if (opts.removeMissing) {
+      // Only a fully understood export can say what is "missing"; otherwise everything would be removed.
+      summary.removeSkipped = !!opts.removeMissing && (rowErrors.length > 0 || workouts.length === 0);
+      if (opts.removeMissing && !summary.removeSkipped) {
         const all = db.prepare("SELECT id, external_id FROM workouts WHERE source = ? AND deleted_at IS NULL").all(HEVY_SOURCE) as {
           id: number;
           external_id: string;

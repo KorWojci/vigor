@@ -130,7 +130,7 @@ export async function importHevyAction(form: FormData) {
   let msg: string;
   try {
     const r = importHevyCsv(database, await f.text(), { tz: getSetting(database, "timezone"), fileName: f.name.slice(0, 120), removeMissing: form.get("removeMissing") === "on" });
-    msg = `Imported ${r.workouts} workouts: ${r.accepted} new, ${r.updated} updated, ${r.skipped} unchanged${r.deleted ? `, ${r.deleted} removed` : ""}${r.rejected ? `, ${r.rejected} rows rejected` : ""}. ${r.exercisesCreated} new exercises.`;
+    msg = `Imported ${r.workouts} workouts: ${r.accepted} new, ${r.updated} updated, ${r.skipped} unchanged${r.deleted ? `, ${r.deleted} removed` : ""}${r.rejected ? `, ${r.rejected} rows rejected` : ""}. ${r.exercisesCreated} new exercises.${r.removeSkipped ? " Nothing was removed: some rows could not be read, so the export can't be treated as complete." : ""}`;
   } catch (e) {
     go("training", { error: e instanceof HevyFormatError ? e.message : `Import failed: ${e instanceof Error ? e.message : "unknown error"}` });
     return;
