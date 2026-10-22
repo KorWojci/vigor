@@ -8,7 +8,7 @@ import HealthKit
 /// Neither guarantees an exact schedule: iOS considers battery, usage patterns, Low Power Mode and
 /// whether the device is locked (protected Health data cannot be read while locked).
 enum BackgroundSync {
-    static let refreshTaskId = "local.vigor.sync.refresh"
+    static let refreshTaskId = "com.korwojci.vigor.refresh"
 
     static func register() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: refreshTaskId, using: nil) { task in

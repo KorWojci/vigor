@@ -33,7 +33,7 @@ final class SettingsStore: ObservableObject {
 }
 
 enum Keychain {
-    private static let service = "local.vigor.sync"
+    private static let service = "com.korwojci.vigor"
 
     static func write(account: String, value: String) {
         delete(account: account)

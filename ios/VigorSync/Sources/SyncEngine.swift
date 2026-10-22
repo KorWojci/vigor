@@ -12,7 +12,7 @@ import HealthKit
 final class SyncEngine: ObservableObject {
     static let shared = SyncEngine()
     static let source = "vigor-ios"
-    private static let pageSize = 5000
+    static let pageSize = 5000
 
     let store = HKHealthStore()
     private let settings = SettingsStore.shared
@@ -23,6 +23,12 @@ final class SyncEngine: ObservableObject {
     @Published private(set) var lastError: String? = UserDefaults.standard.string(forKey: "lastError")
     @Published private(set) var lastResult: String = ""
     @Published private(set) var pendingSamples = 0
+    /// Per-type progress of the current (or last) sync, in HealthTypes.allScopes order.
+    @Published private(set) var progress: [ScopeProgress] = []
+    /// The type being read or sent right now; nil when idle.
+    @Published private(set) var currentScope: String?
+
+    var finishedScopes: Int { progress.filter { $0.state == .done }.count }
 
     private let iso: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -61,11 +67,16 @@ final class SyncEngine: ObservableObject {
         lastAttempt = started
         UserDefaults.standard.set(started, forKey: "lastAttempt")
         var totals = (accepted: 0, updated: 0, deleted: 0, rejected: 0)
+        progress = HealthTypes.allScopes.map { ScopeProgress(scope: $0) }
+        var active: Int?
         do {
             let api = try client()
             try await restoreAnchorsIfNeeded(api)
-            for scope in HealthTypes.allScopes {
-                guard let type = HealthTypes.sampleType(forScope: scope) else { continue }
+            for (i, scope) in HealthTypes.allScopes.enumerated() {
+                guard let type = HealthTypes.sampleType(forScope: scope) else { progress[i].state = .done; continue }
+                active = i
+                currentScope = scope
+                progress[i].state = .reading
                 // Page through changes until HealthKit returns fewer than a full page.
                 while true {
                     let (added, deleted, newAnchor) = try await changes(for: type, scope: scope)
@@ -73,19 +84,34 @@ final class SyncEngine: ObservableObject {
                         if let a = newAnchor { settings.setAnchorData(archive(a), scope: scope) }
                         break
                     }
-                    pendingSamples = added.count + deleted.count
+                    let pageCount = added.count + deleted.count
+                    pendingSamples = pageCount
+                    progress[i].state = .sending
+                    progress[i].inFlight = pageCount
                     let payload = buildPayload(scope: scope, added: added, deleted: deleted, anchor: newAnchor)
                     let res = try await api.importPayload(payload)
                     totals.accepted += res.summary.accepted
                     totals.updated += res.summary.updated
                     totals.deleted += res.summary.deleted
                     totals.rejected += res.summary.rejected
+                    progress[i].pages += 1
+                    progress[i].sent += pageCount
+                    progress[i].inFlight = 0
+                    progress[i].accepted += res.summary.accepted
+                    progress[i].updated += res.summary.updated
+                    progress[i].skipped += res.summary.skipped
+                    progress[i].deleted += res.summary.deleted
+                    progress[i].rejected += res.summary.rejected
                     // Acknowledged — advance the cursor.
                     if let a = newAnchor { settings.setAnchorData(archive(a), scope: scope) }
                     pendingSamples = 0
-                    if added.count + deleted.count < Self.pageSize { break }
+                    if pageCount < Self.pageSize { break }
+                    progress[i].state = .reading
                 }
+                progress[i].state = .done
             }
+            active = nil
+            currentScope = nil
             lastSuccess = Date()
             UserDefaults.standard.set(lastSuccess, forKey: "lastSuccess")
             lastError = nil
@@ -94,6 +120,11 @@ final class SyncEngine: ObservableObject {
             await report()
             return true
         } catch {
+            if let i = active {
+                progress[i].state = .failed
+                progress[i].inFlight = 0
+            }
+            currentScope = nil
             lastError = error.localizedDescription
             UserDefaults.standard.set(lastError, forKey: "lastError")
             await report()
