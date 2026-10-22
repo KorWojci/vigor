@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { SimpleBars } from "@/components/charts";
+import { WeeklyBars } from "@/components/charts";
 import { EmptyState, PageHead, RangeSelector } from "@/components/ui";
 import { appContext, db } from "@/lib/server/context";
 import { EXERCISE_KINDS } from "@/lib/training/calculations";
 import { listExercises, listWorkouts, workoutsPerWeek } from "@/lib/training/repo";
-import { addDays, formatDate, formatDateTime, presetDays, rangeFromDays, weekStart } from "@/lib/time";
+import type { WeekBar } from "@/components/charts";
+import { addDays, formatDate, formatDateTime, isoWeek, presetDays, rangeFromDays, weekStart } from "@/lib/time";
 import { formatDuration, formatNumber, toDisplay } from "@/lib/units";
 
 export const metadata = { title: "Training" };
@@ -21,9 +22,17 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
 
   // Consistency: every week in range, including empty weeks (shown as 0 workouts — a count, not a measurement).
   const perWeek = new Map(workoutsPerWeek(workouts, (ms) => weekStart(ms, tz)).map((w) => [w.week, w.count]));
-  const weeks: { week: string; count: number }[] = [];
-  for (let w = weekStart(range.startMs, tz); w <= range.to; w = addDays(w, 7)) weeks.push({ week: w, count: perWeek.get(w) ?? 0 });
+  const weeks: WeekBar[] = [];
+  for (let w = weekStart(range.startMs, tz); w <= range.to; w = addDays(w, 7)) {
+    const { year, week } = isoWeek(w);
+    const selected = sp.week === w;
+    const href = `/training?${new URLSearchParams({ range: preset.key, ...(selected ? {} : { week: w }) })}`;
+    weeks.push({ week: w, label: `W${week}`, title: `Week ${week}, ${year}`, dates: `${formatDate(w, tz)} – ${formatDate(addDays(w, 6), tz)}`, count: perWeek.get(w) ?? 0, href });
+  }
   const activeWeeks = weeks.filter((w) => w.count > 0).length;
+  // Clicking a bar (?week=Monday) narrows the workout list to that week; clicking it again clears it.
+  const selectedWeek = weeks.find((w) => w.week === sp.week);
+  const listed = selectedWeek ? workouts.filter((w) => weekStart(w.startMs, tz) === selectedWeek.week) : workouts;
   const totalVolume = workouts.reduce((a, w) => a + w.volumeKg, 0);
   const totalDuration = workouts.reduce((a, w) => a + (w.durationS ?? 0), 0);
 
@@ -50,8 +59,8 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
           </section>
 
           <section className="card section">
-            <h2>Workouts per week</h2>
-            <SimpleBars data={weeks} xKey="week" yKey="count" label="Workouts" height={200} />
+            <div className="card-head"><h2>Workouts per week</h2><span className="small muted">ISO weeks · click a bar to list its workouts</span></div>
+            <WeeklyBars data={weeks} selected={selectedWeek?.week} height={200} />
           </section>
 
           <section className="grid grid-2 section">
@@ -74,13 +83,21 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
               </div>
             </div>
             <div className="card">
-              <div className="card-head"><h2>Workouts</h2><Link href="/settings?tab=training" className="small">Import Hevy export →</Link></div>
-              {workouts.length === 0 ? <p className="muted">No workouts in this period.</p> : (
+              {selectedWeek ? (
+                <div className="card-head">
+                  <h2>Workouts · {selectedWeek.title}</h2>
+                  <Link href={`/training?${new URLSearchParams({ range: preset.key })}`} scroll={false} className="small">Show all →</Link>
+                </div>
+              ) : (
+                <div className="card-head"><h2>Workouts</h2><Link href="/settings?tab=training" className="small">Import Hevy export →</Link></div>
+              )}
+              {selectedWeek && <p className="small muted" style={{ marginTop: 0 }}>{selectedWeek.dates}</p>}
+              {listed.length === 0 ? <p className="muted">{selectedWeek ? "No workouts in this week." : "No workouts in this period."}</p> : (
                 <div className="table-wrap" style={{ maxHeight: 520, overflowY: "auto" }}>
                   <table>
                     <thead><tr><th>Workout</th><th>Date</th><th className="r">Sets</th><th className="r">Duration</th></tr></thead>
                     <tbody>
-                      {workouts.map((w) => (
+                      {listed.map((w) => (
                         <tr key={w.id}>
                           <td>
                             <Link href={`/training/workouts/${w.id}`}>{w.title ?? w.activityType ?? "Workout"}</Link>

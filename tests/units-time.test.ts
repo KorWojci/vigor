@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toCanonical, toDisplay, fromDisplay, formatDuration } from "@/lib/units";
-import { dayKey, startOfDayMs, zonedWallTimeToUtc, rangeFromDays, previousRange } from "@/lib/time";
+import { dayKey, startOfDayMs, zonedWallTimeToUtc, rangeFromDays, previousRange, isoWeek } from "@/lib/time";
 
 describe("units", () => {
   it("converts to canonical units", () => {
@@ -33,5 +33,15 @@ describe("time", () => {
     expect(r).toMatchObject({ from: "2026-10-14", to: "2026-10-20", days: 7 });
     expect(previousRange(r, "UTC")).toMatchObject({ from: "2026-10-07", to: "2026-10-13" });
     expect(dayKey(r.endMs - 1, "UTC")).toBe("2026-10-20");
+  });
+});
+
+describe("isoWeek", () => {
+  it("numbers weeks per ISO 8601, including year boundaries", () => {
+    expect(isoWeek("2026-10-19")).toEqual({ year: 2026, week: 43 });
+    expect(isoWeek("2026-10-25")).toEqual({ year: 2026, week: 43 });
+    expect(isoWeek("2026-01-01")).toEqual({ year: 2026, week: 1 });
+    expect(isoWeek("2027-01-01")).toEqual({ year: 2026, week: 53 });
+    expect(isoWeek("2024-12-30")).toEqual({ year: 2025, week: 1 });
   });
 });

@@ -75,6 +75,7 @@ function ProfileTab({ ctx }: { ctx: Ctx }) {
             </select>
           </label>
         </div>
+        <label className="field"><span>Max heart rate <span className="hint">(optional, bpm — for heart-rate zones; otherwise 220 − age, or your highest reading)</span></span><input name="maxHeartRate" type="number" min={100} max={240} defaultValue={p.maxHeartRate ?? ""} /></label>
         <label className="field">
           <span>Units</span>
           <select name="units" defaultValue={ctx.settings.units}>

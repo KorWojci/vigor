@@ -59,11 +59,13 @@ export async function saveProfileAction(form: FormData) {
   const database = db();
   const birthYear = Number(form.get("birthYear"));
   const sex = String(form.get("sex") ?? "unspecified");
+  const maxHeartRate = Number(form.get("maxHeartRate"));
   try {
     setSetting(database, "profile", {
       displayName: String(form.get("displayName") ?? "").trim() || undefined,
       birthYear: Number.isInteger(birthYear) && birthYear > 1900 ? birthYear : undefined,
       sex: (["female", "male", "other", "unspecified"].includes(sex) ? sex : "unspecified") as Settings["profile"]["sex"],
+      maxHeartRate: Number.isInteger(maxHeartRate) && maxHeartRate >= 100 && maxHeartRate <= 240 ? maxHeartRate : undefined,
     });
     setSetting(database, "units", form.get("units") === "imperial" ? "imperial" : "metric");
   } catch {

@@ -15,6 +15,8 @@ export const settingsSchema = {
       displayName: z.string().max(80).optional(),
       birthYear: z.number().int().min(1900).max(2100).optional(),
       sex: z.enum(["female", "male", "other", "unspecified"]).optional(),
+      /** Used for heart-rate zones; when absent, 220 − age or the highest recorded value is used. */
+      maxHeartRate: z.number().int().min(100).max(240).optional(),
     })
     .default({}),
   units: z.enum(["metric", "imperial"]).default("metric"),

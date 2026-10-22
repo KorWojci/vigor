@@ -192,6 +192,16 @@ export function formatRelative(ms: number, now = Date.now()): string {
 }
 
 /** Monday (YYYY-MM-DD) of the local week containing `ms`. */
+/** ISO 8601 week number and week-numbering year of a day key (weeks start on Monday). */
+export function isoWeek(day: string): { year: number; week: number } {
+  const [y, m, d] = day.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  // The Thursday of this week decides which year the week belongs to.
+  dt.setUTCDate(dt.getUTCDate() + 3 - ((dt.getUTCDay() + 6) % 7));
+  const year = dt.getUTCFullYear();
+  return { year, week: Math.ceil(((dt.getTime() - Date.UTC(year, 0, 1)) / 86_400_000 + 1) / 7) };
+}
+
 export function weekStart(ms: number, tz: string): string {
   const day = dayKey(ms, tz);
   const [y, m, d] = day.split("-").map(Number);

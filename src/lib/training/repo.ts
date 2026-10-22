@@ -62,6 +62,7 @@ export function listWorkouts(db: DB, startMs: number, endMs: number): WorkoutLis
 
 export interface WorkoutDetail extends WorkoutListItem {
   notes: string | null;
+  maxHr: number | null;
   exercises: { id: number; exerciseId: number; name: string; kind: ExerciseKind; notes: string | null; sets: (SetData & { id: number; setIndex: number })[]; stats: SessionStats }[];
 }
 
@@ -69,10 +70,10 @@ export function getWorkout(db: DB, id: number): WorkoutDetail | null {
   const w = db
     .prepare(
       `SELECT id, source, title, activity_type AS activityType, start_ms AS startMs, end_ms AS endMs, duration_s AS durationS,
-       energy_kcal AS energyKcal, distance_m AS distanceM, avg_hr AS avgHr, source_name AS sourceName, notes
+       energy_kcal AS energyKcal, distance_m AS distanceM, avg_hr AS avgHr, max_hr AS maxHr, source_name AS sourceName, notes
        FROM workouts WHERE id = ? AND deleted_at IS NULL`,
     )
-    .get(id) as (WorkoutListItem & { notes: string | null }) | undefined;
+    .get(id) as (WorkoutListItem & { notes: string | null; maxHr: number | null }) | undefined;
   if (!w) return null;
   const exercises = db
     .prepare(

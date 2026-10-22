@@ -9,14 +9,17 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Line,
   LineChart,
+  ReferenceArea,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { useRouter } from "next/navigation";
 
 export interface ChartPoint {
   day: string;
@@ -205,6 +208,124 @@ export function MultiLineChart({
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+export interface WeekBar {
+  week: string; // Monday, YYYY-MM-DD
+  label: string; // "W43"
+  title: string; // "Week 43, 2026"
+  dates: string; // "20 Oct – 26 Oct 2026"
+  count: number;
+  href: string;
+}
+
+/** Workouts per ISO week; hovering shows the week's first and last day, clicking opens its workouts. */
+export function WeeklyBars({ data, selected, height = 200 }: { data: WeekBar[]; selected?: string; height?: number }) {
+  const router = useRouter();
+  return (
+    <div style={{ width: "100%", height }}>
+      <ResponsiveContainer>
+        <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke="var(--line)" strokeDasharray="2 4" vertical={false} />
+          <XAxis dataKey="label" {...axisProps} minTickGap={8} />
+          <YAxis {...axisProps} width={36} allowDecimals={false} />
+          <Tooltip
+            cursor={{ fill: "var(--bronze-soft)" }}
+            content={({ active, payload }) => {
+              const w = active ? (payload?.[0]?.payload as WeekBar | undefined) : undefined;
+              if (!w) return null;
+              return (
+                <div className="tt">
+                  <div className="faint tiny">{w.title} · {w.dates}</div>
+                  <div>Workouts: <strong className="num">{w.count}</strong></div>
+                  {w.count > 0 && <div className="faint tiny">Click to show them</div>}
+                </div>
+              );
+            }}
+          />
+          <Bar
+            dataKey="count"
+            name="Workouts"
+            radius={[3, 3, 0, 0]}
+            maxBarSize={26}
+            isAnimationActive={false}
+            cursor="pointer"
+            onClick={(entry) => {
+              const w = (entry as { payload?: WeekBar }).payload;
+              if (w) router.push(w.href, { scroll: false });
+            }}
+          >
+            {data.map((w) => (
+              <Cell key={w.week} fill="var(--chart-1)" fillOpacity={selected && selected !== w.week ? 0.4 : 1} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+const fmtMin = (m: number) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60) % 60).padStart(2, "0")}`;
+
+/** Heart rate over a workout; x is minutes since start. Zone bounds are drawn as faint bands. */
+export function WorkoutHrChart({ data, zoneBounds = [], height = 240 }: { data: { min: number; bpm: number }[]; zoneBounds?: number[]; height?: number }) {
+  const bands = ["var(--chart-2)", "var(--chart-3)", "var(--chart-5)", "var(--chart-1)", "var(--chart-4)"];
+  return (
+    <div style={{ width: "100%", height }}>
+      <ResponsiveContainer>
+        <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke="var(--line)" strokeDasharray="2 4" vertical={false} />
+          {zoneBounds.map((from, i) => (
+            <ReferenceArea key={from} y1={from} y2={zoneBounds[i + 1] ?? 250} fill={bands[i]} fillOpacity={0.07} ifOverflow="hidden" />
+          ))}
+          <XAxis dataKey="min" type="number" domain={["dataMin", "dataMax"]} tickFormatter={(v) => `${Math.round(v)}′`} {...axisProps} minTickGap={24} />
+          <YAxis {...axisProps} width={40} domain={["dataMin - 5", "dataMax + 5"]} allowDecimals={false} />
+          <Tooltip
+            content={({ active, payload }) => {
+              const p = active ? (payload?.[0]?.payload as { min: number; bpm: number } | undefined) : undefined;
+              if (!p) return null;
+              return (
+                <div className="tt">
+                  <div className="faint tiny">{fmtMin(p.min)} min</div>
+                  <div><strong className="num">{Math.round(p.bpm)}</strong> bpm</div>
+                </div>
+              );
+            }}
+          />
+          <Line dataKey="bpm" name="Heart rate" stroke="var(--chart-4)" strokeWidth={1.6} dot={false} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** Active energy per minute of a workout. */
+export function EnergyMinuteBars({ data, height = 160 }: { data: { min: number; kcal: number }[]; height?: number }) {
+  return (
+    <div style={{ width: "100%", height }}>
+      <ResponsiveContainer>
+        <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke="var(--line)" strokeDasharray="2 4" vertical={false} />
+          <XAxis dataKey="min" tickFormatter={(v) => `${v}′`} {...axisProps} minTickGap={24} />
+          <YAxis {...axisProps} width={36} />
+          <Tooltip
+            cursor={{ fill: "var(--bronze-soft)" }}
+            content={({ active, payload }) => {
+              const p = active ? (payload?.[0]?.payload as { min: number; kcal: number } | undefined) : undefined;
+              if (!p) return null;
+              return (
+                <div className="tt">
+                  <div className="faint tiny">Minute {p.min + 1}</div>
+                  <div><strong className="num">{fmt(p.kcal, 1)}</strong> kcal</div>
+                </div>
+              );
+            }}
+          />
+          <Bar dataKey="kcal" fill="var(--chart-1)" radius={[2, 2, 0, 0]} isAnimationActive={false} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
