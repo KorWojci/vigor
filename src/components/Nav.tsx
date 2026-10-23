@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { icons } from "./icons";
 
 export const NAV_ITEMS = [
+  { href: "/today", label: "Today", icon: icons.today },
   { href: "/", label: "Dashboard", icon: icons.dashboard },
   { href: "/metrics", label: "Health metrics", icon: icons.metrics },
   { href: "/nutrition", label: "Nutrition", icon: icons.nutrition },

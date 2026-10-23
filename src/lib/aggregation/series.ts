@@ -184,3 +184,13 @@ export function getSourceBreakdown(db: DB, metricKey: string, range: DateRange):
     )
     .all(metricKey, range.startMs, range.endMs) as { sourceName: string; source: string; samples: number }[];
 }
+
+/** Same as getSourceBreakdown, but across every metric type — for "what synced in this window". */
+export function getAllSourcesBreakdown(db: DB, range: DateRange): { sourceName: string; source: string; samples: number }[] {
+  return db
+    .prepare(
+      `SELECT COALESCE(source_name, '(unknown)') AS sourceName, source, COUNT(*) AS samples FROM health_samples
+       WHERE deleted_at IS NULL AND start_ms >= ? AND start_ms < ? GROUP BY source_name, source ORDER BY samples DESC`,
+    )
+    .all(range.startMs, range.endMs) as { sourceName: string; source: string; samples: number }[];
+}

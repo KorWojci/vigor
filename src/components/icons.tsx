@@ -1,6 +1,9 @@
 const base = { fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" } as const;
 
 export const icons = {
+  today: (
+    <svg viewBox="0 0 24 24" {...base}><circle cx="12" cy="12" r="4.5" /><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" /></svg>
+  ),
   dashboard: (
     <svg viewBox="0 0 24 24" {...base}><circle cx="12" cy="12" r="9" /><rect x="5.5" y="5.5" width="13" height="13" opacity=".6" /><circle cx="12" cy="8" r="1.4" /><path d="M12 10v5m-4-3h8m-4 3-2.5 3.5M12 15l2.5 3.5" /></svg>
   ),
