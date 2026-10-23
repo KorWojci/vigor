@@ -1,30 +1,52 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { SleepChart } from "@/components/charts";
 import { EmptyState, FlashMessage, PageHead } from "@/components/ui";
+import { TodayEditor } from "@/components/TodayEditor";
 import { TodayTile } from "@/components/TodayTile";
 import { getAllSourcesBreakdown, getLatestReading, getMetricSummary, getSleepNights, type MetricSummary } from "@/lib/aggregation/series";
 import { getSyncStatus } from "@/lib/ingest/sync-status";
 import { appContext, db } from "@/lib/server/context";
+import { getTodayLayout } from "@/lib/settings";
 import { formatDate, formatDateTime, formatRelative, previousRange, rangeFromDays } from "@/lib/time";
 import { listWorkouts } from "@/lib/training/repo";
 import { formatDuration, formatNumber } from "@/lib/units";
+import type { UnitSystem } from "@/lib/units";
 
 export const metadata = { title: "Today" };
 
-const ACTIVITY_METRICS = ["step_count", "active_energy", "exercise_time", "stand_hours", "flights_climbed"];
-const HEART_METRICS = ["resting_heart_rate", "heart_rate_variability", "oxygen_saturation"];
-const NUTRITION_METRICS = ["dietary_energy", "dietary_protein", "dietary_carbohydrates", "dietary_fat", "dietary_water"];
+/** Visible tiles, then a "Show more" toggle for the rest — order and split configured in Customize Today. */
+function MetricSection({ visible, more, summary, units, extra }: { visible: string[]; more: string[]; summary: (k: string) => MetricSummary; units: UnitSystem; extra?: ReactNode }) {
+  return (
+    <>
+      <div className="grid grid-auto">
+        {visible.map((k) => <TodayTile key={k} summary={summary(k)} units={units} />)}
+        {extra}
+      </div>
+      {more.length > 0 && (
+        <details style={{ marginTop: 10 }}>
+          <summary className="small" style={{ cursor: "pointer" }}>Show {more.length} more</summary>
+          <div className="grid grid-auto" style={{ marginTop: 10 }}>
+            {more.map((k) => <TodayTile key={k} summary={summary(k)} units={units} />)}
+          </div>
+        </details>
+      )}
+    </>
+  );
+}
 
 export default async function TodayPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const { settings, tz } = await appContext();
   const sp = await searchParams;
   const database = db();
   const units = settings.units;
+  const edit = sp.edit === "1";
 
   // Always exactly today — day navigation belongs on the Dashboard / metric pages, which already have it.
   const range = rangeFromDays(1, tz);
   const prev = previousRange(range, tz);
   const status = getSyncStatus(database);
+  const layout = getTodayLayout(database);
 
   const summaries = new Map<string, MetricSummary>();
   const summary = (key: string) => {
@@ -52,9 +74,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             {" · totals below are "}today so far<Link href="/" className="small" style={{ marginLeft: 8 }}>Trends on the Dashboard →</Link>
           </span>
         }
-      />
+      >
+        {edit ? null : <Link className="btn small" href="/today?edit=1">Customize</Link>}
+      </PageHead>
 
-      {!hasAnything ? (
+      {edit ? (
+        <TodayEditor initial={layout} />
+      ) : !hasAnything ? (
         <div className="card">
           <EmptyState title="Nothing synced for today yet">
             <p>Vigor fills this page from your Apple Health sync. Once today&rsquo;s first sync lands, steps, energy, heart rate and anything else you&rsquo;ve allowed will show up here.</p>
@@ -65,31 +91,30 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         <>
           <section className="card section" style={{ marginTop: 20 }}>
             <div className="card-head"><h2>Activity</h2></div>
-            <div className="grid grid-auto">
-              {ACTIVITY_METRICS.map((k) => (
-                <TodayTile key={k} summary={summary(k)} units={units} />
-              ))}
-            </div>
+            <MetricSection visible={layout.activity.visible} more={layout.activity.more} summary={summary} units={units} />
           </section>
 
           <section className="card section">
             <div className="card-head"><h2>Heart & recovery</h2></div>
-            <div className="grid grid-auto">
-              {HEART_METRICS.map((k) => (
-                <TodayTile key={k} summary={summary(k)} units={units} />
-              ))}
-              <div className="tile">
-                <span className="label">Right now</span>
-                {rightNowHr ? (
-                  <>
-                    <span className="value">{formatNumber(rightNowHr.value, 0)}<span className="unit">bpm</span></span>
-                    <span className="meta">{formatRelative(rightNowHr.at)} · {rightNowHr.sourceName}</span>
-                  </>
-                ) : (
-                  <span className="empty">No heart-rate reading today</span>
-                )}
-              </div>
-            </div>
+            <MetricSection
+              visible={layout.heart.visible}
+              more={layout.heart.more}
+              summary={summary}
+              units={units}
+              extra={
+                <div className="tile">
+                  <span className="label">Right now</span>
+                  {rightNowHr ? (
+                    <>
+                      <span className="value">{formatNumber(rightNowHr.value, 0)}<span className="unit">bpm</span></span>
+                      <span className="meta">{formatRelative(rightNowHr.at)} · {rightNowHr.sourceName}</span>
+                    </>
+                  ) : (
+                    <span className="empty">No heart-rate reading today</span>
+                  )}
+                </div>
+              }
+            />
           </section>
 
           <section className="grid grid-2 section">
@@ -141,14 +166,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
           <section className="card section">
             <div className="card-head"><h2>Nutrition today</h2><Link href="/nutrition" className="small">Details →</Link></div>
-            {NUTRITION_METRICS.every((k) => summary(k).value === null) ? (
+            {[...layout.nutrition.visible, ...layout.nutrition.more].every((k) => summary(k).value === null) ? (
               <p className="muted">Nothing logged yet today. Vigor shows nutrition that apps such as food trackers write to Apple Health.</p>
             ) : (
-              <div className="grid grid-auto">
-                {NUTRITION_METRICS.map((k) => (
-                  <TodayTile key={k} summary={summary(k)} units={units} />
-                ))}
-              </div>
+              <MetricSection visible={layout.nutrition.visible} more={layout.nutrition.more} summary={summary} units={units} />
             )}
           </section>
 
@@ -166,6 +187,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
               </table>
             )}
           </section>
+
+          <p className="tiny faint section">
+            Use <Link href="/today?edit=1">Customize</Link> to change which metrics are always visible, which are under “Show more”, and their order.
+          </p>
         </>
       )}
     </>

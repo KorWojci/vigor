@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { DB } from "./db";
 import { isValidTimeZone, RANGE_PRESETS } from "./time";
 import { DEFAULT_LAYOUT, layoutFromLegacyTiles, normalizeLayout, ZONES, type DashboardLayout } from "./dashboard-layout";
+import { DEFAULT_TODAY_LAYOUT, normalizeTodayLayout, TODAY_COLUMNS, TODAY_SECTIONS, type TodayLayout } from "./today-layout";
 
 /**
  * Application settings, stored as JSON values in the `settings` table.
@@ -34,6 +35,15 @@ export const settingsSchema = {
   dashboardLayout: z
     .object(Object.fromEntries(ZONES.map((zn) => [zn, z.array(z.string()).max(50)])) as Record<(typeof ZONES)[number], z.ZodArray<z.ZodString>>)
     .transform(normalizeLayout)
+    .optional(),
+  /** Today page: which metrics are always visible vs. under "Show more", per section, and in what order (see today-layout.ts). */
+  todayLayout: z
+    .object(
+      Object.fromEntries(
+        TODAY_SECTIONS.map((sec) => [sec, z.object(Object.fromEntries(TODAY_COLUMNS.map((col) => [col, z.array(z.string()).max(30)])) as Record<(typeof TODAY_COLUMNS)[number], z.ZodArray<z.ZodString>>)]),
+      ) as Record<(typeof TODAY_SECTIONS)[number], z.ZodObject<Record<(typeof TODAY_COLUMNS)[number], z.ZodArray<z.ZodString>>>>,
+    )
+    .transform(normalizeTodayLayout)
     .optional(),
   movingAverageDays: z.union([z.literal(0), z.literal(7), z.literal(14), z.literal(30)]).default(7),
   syncIntervalMinutes: z.number().int().min(15).max(24 * 60).default(60),
@@ -78,4 +88,9 @@ export function getDashboardLayout(db: DB): DashboardLayout {
   if (saved) return saved;
   const legacy = db.prepare("SELECT 1 FROM settings WHERE key = 'dashboardTiles'").get();
   return legacy ? layoutFromLegacyTiles(getSetting(db, "dashboardTiles")) : normalizeLayout(DEFAULT_LAYOUT);
+}
+
+/** The Today page layout: the saved one, else the default. */
+export function getTodayLayout(db: DB): TodayLayout {
+  return getSetting(db, "todayLayout") ?? DEFAULT_TODAY_LAYOUT;
 }
