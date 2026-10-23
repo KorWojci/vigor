@@ -1,5 +1,5 @@
 import { type MetricDef, type SleepCategory } from "../metrics/catalog";
-import { dayKey, hourKey } from "../time";
+import { dayKey } from "../time";
 import { mergeIntervals, totalLength, type Interval } from "./intervals";
 
 /**
@@ -45,10 +45,32 @@ function groupByDay<T extends RawSample>(samples: T[], tz: string, at: (s: T) =>
 }
 
 /**
- * Cumulative metrics. With overlap "max-source", per bucket the source with the largest total
- * wins, so an iPhone and an Apple Watch counting the same steps are not added together.
- * Buckets are hours when every sample of that day is ≤ 1 h long (typical HealthKit data), and the
- * whole day otherwise (e.g. a Shortcut that sends one daily total), to avoid mixing granularities.
+ * Groups samples (regardless of source) into contiguous blocks: a new block starts only where
+ * there is a genuine gap in time with no sample from any source. A touching or overlapping sample
+ * extends the current block, however long it grows.
+ */
+function groupByOverlap<T extends { startMs: number; endMs: number }>(items: T[]): T[][] {
+  const sorted = [...items].sort((a, b) => a.startMs - b.startMs);
+  const blocks: T[][] = [];
+  let blockEnd = -Infinity;
+  for (const item of sorted) {
+    if (blocks.length && item.startMs <= blockEnd) blocks[blocks.length - 1].push(item);
+    else blocks.push([item]);
+    blockEnd = Math.max(blockEnd, item.endMs);
+  }
+  return blocks;
+}
+
+/**
+ * Cumulative metrics. With overlap "max-source", an iPhone and an Apple Watch counting the same
+ * steps must not be added together. The day is split into contiguous blocks of activity (a gap
+ * with no sample from any source starts a new block — see groupByOverlap); within each block,
+ * only the source with the larger block total counts, so one source's gap (watch not worn) is
+ * filled by the other, while a single continuously-tracked activity is credited once even if the
+ * two sources briefly swap which of them reports the higher number. Deciding per calendar hour
+ * instead of per actual block would inflate a single activity: whichever source happens to read
+ * higher varies hour to hour, so summing those per-hour winners can exceed what either source
+ * recorded for the whole activity.
  */
 export function aggregateSum(samples: RawSample[], overlap: "max-source" | "sum-all", tz: string): DayValue[] {
   const out: DayValue[] = [];
@@ -58,15 +80,11 @@ export function aggregateSum(samples: RawSample[], overlap: "max-source" | "sum-
     if (overlap === "sum-all") {
       value = items.reduce((a, s) => a + (s.value ?? 0), 0);
     } else {
-      const hourly = items.every((s) => s.endMs - s.startMs <= HOUR_MS + 60_000);
-      const buckets = new Map<string, Map<string, number>>();
-      for (const s of items) {
-        const b = hourly ? hourKey(s.startMs, tz) : day;
-        const perSource = buckets.get(b) ?? new Map<string, number>();
-        perSource.set(srcLabel(s), (perSource.get(srcLabel(s)) ?? 0) + (s.value ?? 0));
-        buckets.set(b, perSource);
+      for (const block of groupByOverlap(items)) {
+        const perSource = new Map<string, number>();
+        for (const s of block) perSource.set(srcLabel(s), (perSource.get(srcLabel(s)) ?? 0) + (s.value ?? 0));
+        value += Math.max(...perSource.values());
       }
-      for (const perSource of buckets.values()) value += Math.max(...perSource.values());
     }
     out.push({ day, value, count: items.length, sources });
   }

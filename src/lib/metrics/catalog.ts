@@ -13,8 +13,11 @@
  *
  * overlap (only for "sum")
  *  - "max-source": several devices often record the same activity (iPhone + Apple Watch both count
- *    steps). Per hour, Vigor keeps the source with the largest total, then sums hours. This avoids
- *    double counting without needing HealthKit's private source-priority list.
+ *    steps). The day is split into contiguous blocks of activity (a gap with no sample from any
+ *    source starts a new block); within each block, only the source with the larger block total
+ *    counts, so one source's gap is filled by the other without double-crediting a single
+ *    continuously-tracked activity. This avoids double counting without needing HealthKit's
+ *    private source-priority list. See aggregateSum in aggregation/aggregate.ts.
  *  - "sum-all": every sample counts (nutrition logged from different apps for different meals).
  */
 export type MetricGroup = "activity" | "cardio" | "sleep" | "body" | "nutrition" | "other";

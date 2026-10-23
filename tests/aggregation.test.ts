@@ -36,6 +36,39 @@ describe("aggregateSum", () => {
     expect(aggregateSum(samples, "max-source", "UTC")[0].value).toBe(8000);
   });
 
+  it("does not inflate a single continuously-tracked activity when the leading source alternates", () => {
+    // A ~1.5h walk where phone and watch both record steps the whole time in small bursts, and
+    // which of the two reports more varies minute to minute (measurement noise, not a real gap).
+    // Deciding per fixed hour bucket and summing the winners would exceed both device totals;
+    // deciding once per contiguous block must not.
+    const samples = [
+      s("2026-10-20T07:00:00Z", "2026-10-20T07:20:00Z", 1100, "Watch"),
+      s("2026-10-20T07:00:00Z", "2026-10-20T07:20:00Z", 1000, "iPhone"),
+      s("2026-10-20T07:20:00Z", "2026-10-20T07:40:00Z", 900, "Watch"),
+      s("2026-10-20T07:20:00Z", "2026-10-20T07:40:00Z", 1050, "iPhone"),
+      s("2026-10-20T07:40:00Z", "2026-10-20T08:00:00Z", 1200, "Watch"),
+      s("2026-10-20T07:40:00Z", "2026-10-20T08:00:00Z", 1150, "iPhone"),
+    ];
+    const watchTotal = 1100 + 900 + 1200;
+    const phoneTotal = 1000 + 1050 + 1150;
+    expect(aggregateSum(samples, "max-source", "UTC")[0].value).toBe(Math.max(watchTotal, phoneTotal));
+  });
+
+  it("still fills a genuine gap (watch not worn) inside an otherwise shared activity", () => {
+    const samples = [
+      s("2026-10-20T07:00:00Z", "2026-10-20T07:20:00Z", 1000, "Watch"),
+      s("2026-10-20T07:00:00Z", "2026-10-20T07:20:00Z", 950, "iPhone"),
+      // Watch removed for this stretch — only the phone recorded it, so it must still count.
+      s("2026-10-20T07:20:00Z", "2026-10-20T07:40:00Z", 800, "iPhone"),
+      s("2026-10-20T07:40:00Z", "2026-10-20T08:00:00Z", 1100, "Watch"),
+      s("2026-10-20T07:40:00Z", "2026-10-20T08:00:00Z", 1050, "iPhone"),
+    ];
+    // One continuous block (no gap with zero samples from every source) → one max-per-source decision.
+    const watchTotal = 1000 + 1100; // no watch samples in the middle stretch
+    const phoneTotal = 950 + 800 + 1050;
+    expect(aggregateSum(samples, "max-source", "UTC")[0].value).toBe(Math.max(watchTotal, phoneTotal));
+  });
+
   it("buckets days in the configured time zone", () => {
     const samples = [s("2026-10-19T23:30:00Z", "2026-10-19T23:45:00Z", 10)];
     expect(aggregateSum(samples, "sum-all", "UTC")[0].day).toBe("2026-10-19");
