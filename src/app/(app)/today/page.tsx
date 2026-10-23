@@ -19,14 +19,14 @@ export const metadata = { title: "Today" };
 function MetricSection({ visible, more, summary, units, extra }: { visible: string[]; more: string[]; summary: (k: string) => MetricSummary; units: UnitSystem; extra?: ReactNode }) {
   return (
     <>
-      <div className="grid grid-auto">
+      <div className="grid grid-4">
         {visible.map((k) => <TodayTile key={k} summary={summary(k)} units={units} />)}
         {extra}
       </div>
       {more.length > 0 && (
         <details style={{ marginTop: 10 }}>
           <summary className="small" style={{ cursor: "pointer" }}>Show {more.length} more</summary>
-          <div className="grid grid-auto" style={{ marginTop: 10 }}>
+          <div className="grid grid-4" style={{ marginTop: 10 }}>
             {more.map((k) => <TodayTile key={k} summary={summary(k)} units={units} />)}
           </div>
         </details>
