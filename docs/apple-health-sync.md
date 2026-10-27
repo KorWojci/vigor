@@ -87,7 +87,7 @@ open VigorSync.xcodeproj
 | File | Role |
 | --- | --- |
 | `HealthTypes.swift` | Vigor metric key ↔ HealthKit type and unit table. |
-| `SyncEngine.swift` | Anchored queries, payload building, upload, anchor advancement, status reports. Also reads each workout's `HKWorkoutRoute`, thinned to roughly one point every 8s/15m, as `route` on the workout. |
+| `SyncEngine.swift` | Anchored queries, payload building, upload, anchor advancement, status reports. Also reads each workout's `HKWorkoutRoute` (thinned to ~1 point/8s/15m, as `route`) and its weather metadata (as `weather`). |
 | `BackgroundSync.swift` | Background delivery, observer queries, BGAppRefreshTask. |
 | `APIClient.swift` | HTTP client (bearer header, JSON). |
 | `SettingsStore.swift` | Server URL, backfill and anchors (UserDefaults); token (Keychain, `AfterFirstUnlockThisDeviceOnly`). |
@@ -103,6 +103,10 @@ The companion also syncs each workout's GPS route (`HKWorkoutRoute`), shown on t
 - **Place name, looked up offline.** Reverse geocoding normally means sending your coordinates to a geocoding API. Instead, Vigor bundles a static, build-time-generated list of the world's cities with population ≥ 15,000 (`src/lib/geo/cities.json`, ~24k entries, trimmed from GeoNames data) and finds the nearest one itself (`src/lib/geo/nearest-city.ts`) — no network call, ever. A point more than 80 km from any known city gets no label rather than a misleading guess.
 
 Shortcuts has no action that reads workout routes, so this is companion-app only.
+
+## Workout weather
+
+Apple Watch already attaches weather (temperature, humidity, a qualitative condition) to most outdoor workouts on-device, in the workout's HealthKit metadata (`HKMetadataKeyWeatherTemperature`/`...Humidity`/`...Condition`). The companion just reads it off the `HKWorkout` object it already has — same "no network call" rule as the route, but here there's nothing to work around: nothing is fetched over the network by anyone, Vigor included. There is no wind *speed* in this data, only a condition that can be "Windy" or "Blustery"; Vigor shows that, not a number it would have to invent.
 
 ## Observing synchronisation
 

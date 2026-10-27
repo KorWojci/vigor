@@ -8,6 +8,7 @@ import { appContext, db } from "@/lib/server/context";
 import { cardioDetail, maxHeartRate, workoutWindowSamples } from "@/lib/training/cardio";
 import { getWorkout, listWorkouts } from "@/lib/training/repo";
 import { routeDistanceMeters } from "@/lib/training/route";
+import { weatherConditionLabel } from "@/lib/training/weather";
 import { formatDateTime } from "@/lib/time";
 import { formatDuration, formatNumber, toDisplay } from "@/lib/units";
 
@@ -45,13 +46,22 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
   const zoneTotal = cardio?.zones?.reduce((a, z) => a + z.seconds, 0) ?? 0;
   const hasCardio = !!cardio && (cardio.hr.length > 0 || cardio.splits.length > 0 || cardio.energyPerMinute.length > 0);
   const place = w.route && w.route.length ? placeLabel(w.route[0].lat, w.route[0].lon) : null;
+  const weatherParts: string[] = [];
+  if (w.weather?.tempC !== null && w.weather?.tempC !== undefined) {
+    const t = toDisplay(w.weather.tempC, "°c", settings.units);
+    weatherParts.push(`${formatNumber(t.value, 0)}${t.unit}`);
+  }
+  const condition = weatherConditionLabel(w.weather?.conditionCode);
+  if (condition) weatherParts.push(condition);
+  if (w.weather?.humidityPct !== null && w.weather?.humidityPct !== undefined) weatherParts.push(`${formatNumber(w.weather.humidityPct, 0)}% humidity`);
+  const weatherText = weatherParts.join(", ") || null;
 
   return (
     <>
       <PageHead
         eyebrow={w.sourceName ?? w.source}
         title={w.title ?? w.activityType ?? "Workout"}
-        sub={<>{formatDateTime(w.startMs, tz)}{place ? ` · ${place}` : ""}</>}
+        sub={<>{formatDateTime(w.startMs, tz)}{place ? ` · ${place}` : ""}{weatherText ? ` · ${weatherText}` : ""}</>}
       >
         <Link href="/training" className="btn small">← Training</Link>
       </PageHead>

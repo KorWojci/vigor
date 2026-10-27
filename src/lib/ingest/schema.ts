@@ -84,6 +84,13 @@ const routePoint = z.object({
   ele: z.number().finite().optional().nullable(),
 });
 
+const weather = z.object({
+  tempC: z.number().finite().min(-90).max(60).optional().nullable(),
+  humidityPct: z.number().finite().min(0).max(100).optional().nullable(),
+  /** Raw HKWeatherCondition value; see src/lib/training/weather.ts for the label table. */
+  conditionCode: z.number().int().min(0).max(1000).optional().nullable(),
+});
+
 export const workoutSchema = z.object({
   activityType: z.string().min(1).max(80),
   title: z.string().max(200).optional().nullable(),
@@ -98,6 +105,8 @@ export const workoutSchema = z.object({
   externalId: z.string().min(1).max(200).optional().nullable(),
   /** GPS route, thinned by the client. ≤ 3000 points keeps even an ultra-distance event well under the body-size limit. */
   route: z.array(routePoint).max(3000).optional().nullable(),
+  /** Weather Apple Watch attached to the workout on-device. No wind speed — HealthKit has none, only a qualitative condition. */
+  weather: weather.optional().nullable(),
   metadata,
 });
 export type WorkoutInput = z.infer<typeof workoutSchema>;

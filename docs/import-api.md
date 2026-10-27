@@ -60,6 +60,8 @@ Samples are rejected individually if the type is unknown, the unit cannot be con
 
 `route`: an optional array of GPS points, ≤ 3000: `{ "t": 12.5, "lat": 52.4069, "lon": 16.9299, "ele": 68.4 }`. `t` is seconds since the workout's own `startAt` (not a timestamp); `ele` (metres) is optional. Points don't need to be evenly spaced, but should be sorted or close to it. There's no basemap — Vigor draws the route as a plain line, and separately looks up the nearest city from a small bundled offline list (no network call) to label where the workout happened.
 
+`weather`: an optional object, `{ "tempC": 14.2, "humidityPct": 72, "conditionCode": 23 }`, all fields optional. This is weather the *client* already had (e.g. Apple Watch attaches it on-device to outdoor workouts) — Vigor never calls a weather API itself. `conditionCode` is HealthKit's `HKWeatherCondition` raw value; see `WEATHER_CONDITIONS` in `src/lib/training/weather.ts` for the label table. There is no wind speed field: HealthKit exposes only a qualitative "windy"/"blustery" condition, not a numeric speed, and Vigor doesn't invent one.
+
 ### Metric types and units
 
 | Key | Canonical unit | Also accepted |

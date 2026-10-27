@@ -311,6 +311,20 @@ final class SyncEngine: ObservableObject {
                 }
                 let route = await decimatedRoute(for: w)
                 if !route.isEmpty { item["route"] = route }
+                // Weather Apple Watch already attached on-device for an outdoor workout — not fetched by this app.
+                if let meta = w.metadata {
+                    var weather: [String: Any] = [:]
+                    if let q = meta[HKMetadataKeyWeatherTemperature] as? HKQuantity, q.is(compatibleWith: .degreeCelsius()) {
+                        weather["tempC"] = q.doubleValue(for: .degreeCelsius())
+                    }
+                    if let q = meta[HKMetadataKeyWeatherHumidity] as? HKQuantity, q.is(compatibleWith: .percent()) {
+                        weather["humidityPct"] = q.doubleValue(for: .percent()) * 100
+                    }
+                    if let c = meta[HKMetadataKeyWeatherCondition] as? NSNumber {
+                        weather["conditionCode"] = c.intValue
+                    }
+                    if !weather.isEmpty { item["weather"] = weather }
+                }
                 workouts.append(item)
             }
         }

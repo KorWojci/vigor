@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { DB } from "../db";
 import { getMetric, SLEEP_CATEGORIES, type SleepCategory } from "../metrics/catalog";
 import { encodeRoute } from "../training/route";
+import { encodeWeather } from "../training/weather";
 import { toCanonical } from "../units";
 import {
   deletionSchema,
@@ -241,6 +242,7 @@ interface NormalisedWorkout {
   sourceName: string | null;
   metadata: string | null;
   route: string | null;
+  weather: string | null;
   contentHash: string;
 }
 
@@ -255,6 +257,9 @@ export function normaliseWorkout(raw: unknown, source: string, now = Date.now())
   if (endMs > now + FUTURE_TOLERANCE_MS) return "workout lies in the future";
   const metadata = w.metadata && Object.keys(w.metadata).length ? stableJson(w.metadata) : null;
   const route = w.route && w.route.length ? encodeRoute(w.route.map((p) => ({ ...p, ele: p.ele ?? null }))) : null;
+  const weather = w.weather
+    ? encodeWeather({ tempC: w.weather.tempC ?? null, humidityPct: w.weather.humidityPct ?? null, conditionCode: w.weather.conditionCode ?? null })
+    : null;
   const fields = {
     activityType: w.activityType,
     title: w.title ?? null,
@@ -268,6 +273,7 @@ export function normaliseWorkout(raw: unknown, source: string, now = Date.now())
     sourceName: w.sourceName?.trim() || null,
     metadata,
     route,
+    weather,
   };
   return {
     ...fields,
@@ -373,14 +379,14 @@ export function importHealthPayload(db: DB, body: unknown, opts: ImportOptions):
   const findWorkout = db.prepare("SELECT id, content_hash, deleted_at FROM workouts WHERE external_id = ?");
   const insertWorkout = db.prepare(
     `INSERT INTO workouts (source, external_id, title, activity_type, start_ms, end_ms, duration_s, energy_kcal, distance_m,
-       avg_hr, max_hr, source_name, metadata, route, content_hash, import_run_id, created_at, updated_at)
+       avg_hr, max_hr, source_name, metadata, route, weather, content_hash, import_run_id, created_at, updated_at)
      VALUES (@source, @externalId, @title, @activityType, @startMs, @endMs, @durationS, @energyKcal, @distanceM,
-       @avgHr, @maxHr, @sourceName, @metadata, @route, @contentHash, @runId, @now, @now)`,
+       @avgHr, @maxHr, @sourceName, @metadata, @route, @weather, @contentHash, @runId, @now, @now)`,
   );
   const updateWorkout = db.prepare(
     `UPDATE workouts SET title=@title, activity_type=@activityType, start_ms=@startMs, end_ms=@endMs, duration_s=@durationS,
        energy_kcal=@energyKcal, distance_m=@distanceM, avg_hr=@avgHr, max_hr=@maxHr, source_name=@sourceName,
-       metadata=@metadata, route=@route, content_hash=@contentHash, import_run_id=@runId, updated_at=@now, deleted_at=NULL
+       metadata=@metadata, route=@route, weather=@weather, content_hash=@contentHash, import_run_id=@runId, updated_at=@now, deleted_at=NULL
      WHERE id=@id`,
   );
 

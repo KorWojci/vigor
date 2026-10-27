@@ -2,6 +2,7 @@ import type { DB } from "../db";
 import { normalizeExerciseName, sessionStats, type ExerciseKind, type SessionStats, type SetData } from "./calculations";
 import { refreshExerciseKinds } from "./hevy-import";
 import { decodeRoute, type RoutePoint } from "./route";
+import { decodeWeather, type Weather } from "./weather";
 
 export interface WorkoutListItem {
   id: number;
@@ -65,6 +66,7 @@ export interface WorkoutDetail extends WorkoutListItem {
   notes: string | null;
   maxHr: number | null;
   route: RoutePoint[] | null;
+  weather: Weather | null;
   exercises: { id: number; exerciseId: number; name: string; kind: ExerciseKind; notes: string | null; sets: (SetData & { id: number; setIndex: number })[]; stats: SessionStats }[];
 }
 
@@ -72,13 +74,15 @@ export function getWorkout(db: DB, id: number): WorkoutDetail | null {
   const w = db
     .prepare(
       `SELECT id, source, title, activity_type AS activityType, start_ms AS startMs, end_ms AS endMs, duration_s AS durationS,
-       energy_kcal AS energyKcal, distance_m AS distanceM, avg_hr AS avgHr, max_hr AS maxHr, source_name AS sourceName, notes, route AS routeRaw
+       energy_kcal AS energyKcal, distance_m AS distanceM, avg_hr AS avgHr, max_hr AS maxHr, source_name AS sourceName, notes,
+       route AS routeRaw, weather AS weatherRaw
        FROM workouts WHERE id = ? AND deleted_at IS NULL`,
     )
-    .get(id) as (WorkoutListItem & { notes: string | null; maxHr: number | null; routeRaw: string | null }) | undefined;
+    .get(id) as (WorkoutListItem & { notes: string | null; maxHr: number | null; routeRaw: string | null; weatherRaw: string | null }) | undefined;
   if (!w) return null;
-  const { routeRaw, ...w2 } = w;
+  const { routeRaw, weatherRaw, ...w2 } = w;
   const route = decodeRoute(routeRaw);
+  const weather = decodeWeather(weatherRaw);
   const exercises = db
     .prepare(
       `SELECT we.id, we.exercise_id AS exerciseId, e.name, e.kind, we.notes FROM workout_exercises we
@@ -96,6 +100,7 @@ export function getWorkout(db: DB, id: number): WorkoutDetail | null {
   return {
     ...w2,
     route,
+    weather,
     exerciseCount: full.length,
     setCount: full.reduce((a, e) => a + e.stats.workingSets, 0),
     volumeKg: full.reduce((a, e) => a + e.stats.volumeKg, 0),

@@ -209,4 +209,11 @@ CREATE INDEX idx_body_measurements_type_time ON body_measurements(type_key, meas
 ALTER TABLE workouts ADD COLUMN route TEXT;  -- JSON [[t,lat,lon,ele], ...], t = seconds since start_ms; NULL = no route
 `,
   },
+  {
+    version: 3,
+    name: "workout weather",
+    sql: `
+ALTER TABLE workouts ADD COLUMN weather TEXT;  -- JSON { tempC, humidityPct, conditionCode }; NULL = none recorded
+`,
+  },
 ];

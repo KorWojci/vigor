@@ -320,6 +320,25 @@ describe("health import", () => {
     const w = { activityType: "running", startAt: "2026-10-20T06:00:00Z", endAt: "2026-10-20T06:30:00Z", externalId: "wr2", route };
     expect(doImport(db, envelope({ workouts: [w] })).summary.rejected).toBe(1);
   });
+
+  it("stores a workout's weather and treats a changed value as an update", () => {
+    const db = testDb();
+    const weather = { tempC: 14.2, humidityPct: 72, conditionCode: 23 };
+    const w = { activityType: "running", startAt: "2026-10-20T06:00:00Z", endAt: "2026-10-20T06:30:00Z", externalId: "ww1", weather };
+    expect(doImport(db, envelope({ workouts: [w] })).summary.accepted).toBe(1);
+    const row = db.prepare("SELECT weather FROM workouts WHERE external_id='ww1'").get() as { weather: string };
+    expect(JSON.parse(row.weather)).toEqual(weather);
+    expect(doImport(db, envelope({ workouts: [w] })).summary.skipped).toBe(1);
+    const warmer = { ...w, weather: { ...weather, tempC: 15 } };
+    expect(doImport(db, envelope({ workouts: [warmer] })).summary.updated).toBe(1);
+  });
+
+  it("stores no weather for an indoor workout that reports none", () => {
+    const db = testDb();
+    const w = { activityType: "strength_training", startAt: "2026-10-20T06:00:00Z", endAt: "2026-10-20T06:30:00Z", externalId: "ww2" };
+    expect(doImport(db, envelope({ workouts: [w] })).summary.accepted).toBe(1);
+    expect(db.prepare("SELECT weather FROM workouts WHERE external_id='ww2'").get()).toEqual({ weather: null });
+  });
 });
 
 describe("parseTimestamp", () => {
