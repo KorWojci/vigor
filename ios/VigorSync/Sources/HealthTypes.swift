@@ -58,6 +58,7 @@ enum HealthTypes {
         s.insert(sleep)
         s.insert(standHour)
         s.insert(workout)
+        s.insert(HKSeriesType.workoutRoute())
         return s
     }
 
