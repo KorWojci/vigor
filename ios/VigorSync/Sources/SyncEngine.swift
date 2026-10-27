@@ -80,7 +80,13 @@ final class SyncEngine: ObservableObject {
         var active: Int?
         do {
             let api = try client()
-            try await restoreAnchorsIfNeeded(api)
+            if settings.pendingFullResync {
+                // Honour the explicit reset: don't let restoreAnchorsIfNeeded pull the server's
+                // old cursors straight back before this run even gets to read anything.
+                settings.pendingFullResync = false
+            } else {
+                try await restoreAnchorsIfNeeded(api)
+            }
             for (i, scope) in HealthTypes.allScopes.enumerated() {
                 guard let type = HealthTypes.sampleType(forScope: scope) else { continue }
                 active = i

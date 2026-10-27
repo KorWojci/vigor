@@ -35,7 +35,6 @@ struct ContentView: View {
                         .disabled(engine.isSyncing || !settings.isConfigured)
                     LabeledContent("Last success", value: engine.lastSuccess?.formatted(date: .abbreviated, time: .shortened) ?? "never")
                     LabeledContent("Last attempt", value: engine.lastAttempt?.formatted(date: .abbreviated, time: .shortened) ?? "never")
-                    if engine.pendingSamples > 0 { LabeledContent("Pending", value: "\(engine.pendingSamples) changes") }
                     if !engine.lastResult.isEmpty { Text(engine.lastResult).font(.footnote) }
                     if let e = engine.lastError { Text(e).font(.footnote).foregroundStyle(.red) }
                     Text("Vigor Sync aims to sync about every hour. iOS decides the exact timing; syncs pause while the iPhone is locked or in Low Power Mode and catch up afterwards.")

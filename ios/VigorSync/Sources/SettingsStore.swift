@@ -29,7 +29,19 @@ final class SettingsStore: ObservableObject {
 
     func anchorData(scope: String) -> Data? { defaults.data(forKey: "anchor.\(scope)") }
     func setAnchorData(_ data: Data?, scope: String) { defaults.set(data, forKey: "anchor.\(scope)") }
-    func resetAnchors() { for s in HealthTypes.allScopes { defaults.removeObject(forKey: "anchor.\(s)") } }
+    func resetAnchors() {
+        for s in HealthTypes.allScopes { defaults.removeObject(forKey: "anchor.\(s)") }
+        pendingFullResync = true
+    }
+
+    /// Set by resetAnchors(); makes the very next sync skip restoreAnchorsIfNeeded, which would
+    /// otherwise see the now-empty local anchors and pull the server's remembered cursors straight
+    /// back — silently undoing the reset (that recovery path exists for a genuine reinstall, which
+    /// looks identical locally: no anchors stored).
+    var pendingFullResync: Bool {
+        get { defaults.bool(forKey: "pendingFullResync") }
+        set { defaults.set(newValue, forKey: "pendingFullResync") }
+    }
 
     // MARK: per-type sync status — the static per-row result shown in ContentView
 
