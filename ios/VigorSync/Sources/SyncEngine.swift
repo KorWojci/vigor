@@ -193,7 +193,7 @@ final class SyncEngine: ObservableObject {
 
     /// All the location points of one route. HKWorkoutRouteQuery delivers them in batches, ending
     /// with one call where `done` is true — the continuation resumes only on that final call.
-    private func locations(in route: HKWorkoutRoute) async throws -> [CLLocation] {
+    private func routeLocations(in route: HKWorkoutRoute) async throws -> [CLLocation] {
         try await withCheckedThrowingContinuation { cont in
             var all: [CLLocation] = []
             let q = HKWorkoutRouteQuery(route: route) { _, batch, done, error in
@@ -216,7 +216,7 @@ final class SyncEngine: ObservableObject {
         guard let hkRoutes = try? await workoutRoutes(for: workout), !hkRoutes.isEmpty else { return [] }
         var locations: [CLLocation] = []
         for route in hkRoutes {
-            if let batch = try? await locations(in: route) { locations.append(contentsOf: batch) }
+            if let batch = try? await routeLocations(in: route) { locations.append(contentsOf: batch) }
         }
         guard let first = locations.first else { return [] }
         locations.sort { $0.timestamp < $1.timestamp }
