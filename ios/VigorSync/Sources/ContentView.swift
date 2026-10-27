@@ -41,7 +41,7 @@ struct ContentView: View {
                     Text("Vigor Sync aims to sync about every hour. iOS decides the exact timing; syncs pause while the iPhone is locked or in Low Power Mode and catch up afterwards.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
-                if !engine.progress.isEmpty { progressSection }
+                progressSection
                 Section {
                     Button("Re-send history (reset anchors)", role: .destructive) { settings.resetAnchors(); message = "Next sync re-sends the backfill window. Duplicates are skipped by Vigor." }
                 }
@@ -51,62 +51,37 @@ struct ContentView: View {
         }
     }
 
-    /// Live per-type progress of the running sync (or the result of the last one).
+    /// One static row per data type: a result icon and the last successful sync time, on the
+    /// right. The list itself never changes shape — only the icon/time of the row currently
+    /// being handled update as a sync runs.
     private var progressSection: some View {
-        let all = engine.progress
-        let active = all.filter { $0.state == .reading || $0.state == .sending || $0.state == .failed || $0.sent > 0 }
-        let upToDate = all.filter { $0.state == .done && $0.sent == 0 }.count
-        let notReached = all.filter { $0.state == .pending }.count
-        var footerParts: [String] = []
-        if upToDate > 0 { footerParts.append("\(upToDate) types had nothing new") }
-        if notReached > 0 { footerParts.append("\(notReached) not reached yet") }
-        let footer = footerParts.joined(separator: " · ")
-        return Section(engine.isSyncing ? "Sending" : "Last sync") {
-            VStack(alignment: .leading, spacing: 6) {
-                ProgressView(value: Double(engine.finishedScopes), total: Double(max(all.count, 1)))
-                Text("\(engine.finishedScopes) of \(all.count) data types finished")
-                    .font(.footnote).foregroundStyle(.secondary)
-            }
-            ForEach(active) { p in
-                HStack(alignment: .top, spacing: 10) {
-                    stateIcon(p.state).frame(width: 20)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(p.label).font(.subheadline)
-                        Text(detail(p)).font(.caption).foregroundStyle(.secondary)
+        Section("Data types") {
+            ForEach(engine.progress) { row in
+                HStack {
+                    Text(row.label)
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        stateIcon(row.state)
+                        Text(lastSyncText(row.lastSyncAt))
+                            .font(.caption2).foregroundStyle(.secondary)
                     }
                 }
-            }
-            if !footer.isEmpty {
-                Text(footer).font(.footnote).foregroundStyle(.secondary)
             }
         }
     }
 
     @ViewBuilder
-    private func stateIcon(_ state: ScopeProgress.State) -> some View {
+    private func stateIcon(_ state: ScopeStatus.State) -> some View {
         switch state {
-        case .pending: Image(systemName: "circle").foregroundStyle(.secondary)
-        case .reading, .sending: ProgressView()
-        case .done: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-        case .failed: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+        case .neverSynced: Image(systemName: "minus.circle").foregroundStyle(.secondary)
+        case .syncing: ProgressView()
+        case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        case .failed: Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
         }
     }
 
-    private func detail(_ p: ScopeProgress) -> String {
-        var parts: [String] = []
-        switch p.state {
-        case .reading: parts.append("reading from Health…")
-        case .sending: parts.append("sending \(p.inFlight.formatted()) changes…")
-        case .failed: parts.append("stopped here — next sync resumes")
-        default: break
-        }
-        if p.sent > 0 {
-            parts.append("\(p.sent.formatted()) sent in \(p.pages) page\(p.pages == 1 ? "" : "s")")
-            parts.append("\(p.accepted.formatted()) new, \(p.skipped.formatted()) already stored")
-            if p.updated > 0 { parts.append("\(p.updated.formatted()) updated") }
-            if p.deleted > 0 { parts.append("\(p.deleted.formatted()) deleted") }
-            if p.rejected > 0 { parts.append("\(p.rejected.formatted()) rejected") }
-        }
-        return parts.joined(separator: " · ")
+    private func lastSyncText(_ date: Date?) -> String {
+        guard let date else { return "Never" }
+        return date.formatted(.relative(presentation: .named))
     }
 }

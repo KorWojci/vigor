@@ -30,6 +30,19 @@ final class SettingsStore: ObservableObject {
     func anchorData(scope: String) -> Data? { defaults.data(forKey: "anchor.\(scope)") }
     func setAnchorData(_ data: Data?, scope: String) { defaults.set(data, forKey: "anchor.\(scope)") }
     func resetAnchors() { for s in HealthTypes.allScopes { defaults.removeObject(forKey: "anchor.\(s)") } }
+
+    // MARK: per-type sync status — the static per-row result shown in ContentView
+
+    /// The last time this type synced successfully, across all past runs, or nil if never.
+    func scopeLastSyncAt(_ scope: String) -> Date? {
+        let t = defaults.double(forKey: "scopeLastSyncAt.\(scope)")
+        return t > 0 ? Date(timeIntervalSince1970: t) : nil
+    }
+    func setScopeLastSyncAt(_ date: Date, scope: String) { defaults.set(date.timeIntervalSince1970, forKey: "scopeLastSyncAt.\(scope)") }
+
+    /// Whether this type's most recent attempt failed (even if it had succeeded at some earlier point).
+    func scopeFailed(_ scope: String) -> Bool { defaults.bool(forKey: "scopeFailed.\(scope)") }
+    func setScopeFailed(_ failed: Bool, scope: String) { defaults.set(failed, forKey: "scopeFailed.\(scope)") }
 }
 
 enum Keychain {

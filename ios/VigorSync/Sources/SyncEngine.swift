@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import HealthKit
 
@@ -23,18 +24,27 @@ final class SyncEngine: ObservableObject {
     @Published private(set) var lastError: String? = UserDefaults.standard.string(forKey: "lastError")
     @Published private(set) var lastResult: String = ""
     @Published private(set) var pendingSamples = 0
-    /// Per-type progress of the current (or last) sync, in HealthTypes.allScopes order.
-    @Published private(set) var progress: [ScopeProgress] = []
-    /// The type being read or sent right now; nil when idle.
-    @Published private(set) var currentScope: String?
-
-    var finishedScopes: Int { progress.filter { $0.state == .done }.count }
+    /// One static row per data type, in HealthTypes.allScopes order — always populated, even
+    /// before the first sync of this session, from the status the last sync of each type left
+    /// persisted in SettingsStore.
+    @Published private(set) var progress: [ScopeStatus]
 
     private let iso: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
+
+    init() {
+        let s = SettingsStore.shared
+        progress = HealthTypes.allScopes.map { scope in
+            let lastSyncAt = s.scopeLastSyncAt(scope)
+            var row = ScopeStatus(scope: scope)
+            row.lastSyncAt = lastSyncAt
+            row.state = s.scopeFailed(scope) ? .failed : (lastSyncAt != nil ? .ok : .neverSynced)
+            return row
+        }
+    }
 
     func requestAuthorization() async throws {
         try await store.requestAuthorization(toShare: [], read: HealthTypes.readTypes)
@@ -67,16 +77,14 @@ final class SyncEngine: ObservableObject {
         lastAttempt = started
         UserDefaults.standard.set(started, forKey: "lastAttempt")
         var totals = (accepted: 0, updated: 0, deleted: 0, rejected: 0)
-        progress = HealthTypes.allScopes.map { ScopeProgress(scope: $0) }
         var active: Int?
         do {
             let api = try client()
             try await restoreAnchorsIfNeeded(api)
             for (i, scope) in HealthTypes.allScopes.enumerated() {
-                guard let type = HealthTypes.sampleType(forScope: scope) else { progress[i].state = .done; continue }
+                guard let type = HealthTypes.sampleType(forScope: scope) else { continue }
                 active = i
-                currentScope = scope
-                progress[i].state = .reading
+                progress[i].state = .syncing
                 // Page through changes until HealthKit returns fewer than a full page.
                 while true {
                     let (added, deleted, newAnchor) = try await changes(for: type, scope: scope)
@@ -86,32 +94,24 @@ final class SyncEngine: ObservableObject {
                     }
                     let pageCount = added.count + deleted.count
                     pendingSamples = pageCount
-                    progress[i].state = .sending
-                    progress[i].inFlight = pageCount
-                    let payload = buildPayload(scope: scope, added: added, deleted: deleted, anchor: newAnchor)
+                    let payload = await buildPayload(scope: scope, added: added, deleted: deleted, anchor: newAnchor)
                     let res = try await api.importPayload(payload)
                     totals.accepted += res.summary.accepted
                     totals.updated += res.summary.updated
                     totals.deleted += res.summary.deleted
                     totals.rejected += res.summary.rejected
-                    progress[i].pages += 1
-                    progress[i].sent += pageCount
-                    progress[i].inFlight = 0
-                    progress[i].accepted += res.summary.accepted
-                    progress[i].updated += res.summary.updated
-                    progress[i].skipped += res.summary.skipped
-                    progress[i].deleted += res.summary.deleted
-                    progress[i].rejected += res.summary.rejected
                     // Acknowledged — advance the cursor.
                     if let a = newAnchor { settings.setAnchorData(archive(a), scope: scope) }
                     pendingSamples = 0
                     if pageCount < Self.pageSize { break }
-                    progress[i].state = .reading
                 }
-                progress[i].state = .done
+                let now = Date()
+                progress[i].state = .ok
+                progress[i].lastSyncAt = now
+                settings.setScopeLastSyncAt(now, scope: scope)
+                settings.setScopeFailed(false, scope: scope)
             }
             active = nil
-            currentScope = nil
             lastSuccess = Date()
             UserDefaults.standard.set(lastSuccess, forKey: "lastSuccess")
             lastError = nil
@@ -122,9 +122,8 @@ final class SyncEngine: ObservableObject {
         } catch {
             if let i = active {
                 progress[i].state = .failed
-                progress[i].inFlight = 0
+                settings.setScopeFailed(true, scope: progress[i].scope)
             }
-            currentScope = nil
             lastError = error.localizedDescription
             UserDefaults.standard.set(lastError, forKey: "lastError")
             await report()
@@ -177,7 +176,89 @@ final class SyncEngine: ObservableObject {
         try? NSKeyedArchiver.archivedData(withRootObject: a, requiringSecureCoding: true)
     }
 
-    private func buildPayload(scope: String, added: [HKSample], deleted: [HKDeletedObject], anchor: HKQueryAnchor?) -> [String: Any] {
+    /// The HKWorkoutRoute object(s) HealthKit attached to a workout (usually zero or one).
+    private func workoutRoutes(for workout: HKWorkout) async throws -> [HKWorkoutRoute] {
+        try await withCheckedThrowingContinuation { cont in
+            let predicate = HKQuery.predicateForObjects(from: workout)
+            let q = HKSampleQuery(sampleType: HKSeriesType.workoutRoute(), predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
+                if let error {
+                    cont.resume(throwing: error)
+                } else {
+                    cont.resume(returning: (samples as? [HKWorkoutRoute]) ?? [])
+                }
+            }
+            store.execute(q)
+        }
+    }
+
+    /// All the location points of one route. HKWorkoutRouteQuery delivers them in batches, ending
+    /// with one call where `done` is true — the continuation resumes only on that final call.
+    private func locations(in route: HKWorkoutRoute) async throws -> [CLLocation] {
+        try await withCheckedThrowingContinuation { cont in
+            var all: [CLLocation] = []
+            let q = HKWorkoutRouteQuery(route: route) { _, batch, done, error in
+                if let error {
+                    cont.resume(throwing: error)
+                    return
+                }
+                if let batch { all.append(contentsOf: batch) }
+                if done { cont.resume(returning: all) }
+            }
+            store.execute(q)
+        }
+    }
+
+    /// Route points for one workout, thinned to roughly one point every 8s or 15m (whichever
+    /// comes first) so a long run stays a reasonable payload size; always keeps the first and
+    /// last point. `t` is seconds since the workout's start, matching how the cardio detail page
+    /// already times heart-rate and split data relative to a workout's start.
+    private func decimatedRoute(for workout: HKWorkout) async -> [[String: Any]] {
+        guard let hkRoutes = try? await workoutRoutes(for: workout), !hkRoutes.isEmpty else { return [] }
+        var locations: [CLLocation] = []
+        for route in hkRoutes {
+            if let batch = try? await locations(in: route) { locations.append(contentsOf: batch) }
+        }
+        guard let first = locations.first else { return [] }
+        locations.sort { $0.timestamp < $1.timestamp }
+
+        let minIntervalS: TimeInterval = 8
+        let minDistanceM: CLLocationDistance = 15
+        var kept: [CLLocation] = [first]
+        for loc in locations {
+            guard let last = kept.last else { continue }
+            if loc.timestamp.timeIntervalSince(last.timestamp) >= minIntervalS || loc.distance(from: last) >= minDistanceM {
+                kept.append(loc)
+            }
+        }
+        if let last = locations.last, kept.last?.timestamp != last.timestamp { kept.append(last) }
+
+        // An unusually long event (e.g. an ultra) could still exceed the server's point limit even
+        // after thinning — subsample evenly rather than truncate, so the whole route still shows.
+        let maxPoints = 2000
+        if kept.count > maxPoints {
+            let stride = Double(kept.count) / Double(maxPoints)
+            var sampled: [CLLocation] = []
+            var i = 0.0
+            while Int(i) < kept.count {
+                sampled.append(kept[Int(i)])
+                i += stride
+            }
+            kept = sampled
+        }
+
+        let start = workout.startDate
+        return kept.map { loc -> [String: Any] in
+            var point: [String: Any] = [
+                "t": loc.timestamp.timeIntervalSince(start),
+                "lat": (loc.coordinate.latitude * 100_000).rounded() / 100_000,
+                "lon": (loc.coordinate.longitude * 100_000).rounded() / 100_000,
+            ]
+            if loc.verticalAccuracy >= 0 { point["ele"] = (loc.altitude * 10).rounded() / 10 }
+            return point
+        }
+    }
+
+    private func buildPayload(scope: String, added: [HKSample], deleted: [HKDeletedObject], anchor: HKQueryAnchor?) async -> [String: Any] {
         var samples: [[String: Any]] = []
         var workouts: [[String: Any]] = []
         for s in added {
@@ -222,6 +303,8 @@ final class SyncEngine: ObservableObject {
                     if let a = hr.averageQuantity() { item["avgHeartRate"] = a.doubleValue(for: bpm) }
                     if let x = hr.maximumQuantity() { item["maxHeartRate"] = x.doubleValue(for: bpm) }
                 }
+                let route = await decimatedRoute(for: w)
+                if !route.isEmpty { item["route"] = route }
                 workouts.append(item)
             }
         }
