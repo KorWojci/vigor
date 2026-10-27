@@ -327,13 +327,6 @@ final class SyncEngine: ObservableObject {
                         weather["conditionCode"] = c.intValue
                     }
                     if !weather.isEmpty { item["weather"] = weather }
-                    // TEMPORARY diagnostic (remove once weather is confirmed working): which
-                    // HealthKit metadata keys this workout actually has, so it's possible to tell
-                    // "nothing recorded" apart from "recorded but failed to parse" from the server
-                    // side, without needing device console access.
-                    item["metadata"] = ["healthKitMetadataKeys": meta.keys.sorted().joined(separator: ",")]
-                } else {
-                    item["metadata"] = ["healthKitMetadataKeys": "(none)"]
                 }
                 workouts.append(item)
             }
