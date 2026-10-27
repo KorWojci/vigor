@@ -318,7 +318,10 @@ final class SyncEngine: ObservableObject {
                         weather["tempC"] = q.doubleValue(for: .degreeCelsius())
                     }
                     if let q = meta[HKMetadataKeyWeatherHumidity] as? HKQuantity, q.is(compatibleWith: .percent()) {
-                        weather["humidityPct"] = q.doubleValue(for: .percent()) * 100
+                        // Confirmed against real device data: HKMetadataKeyWeatherHumidity's .percent()
+                        // value is already 0-100 here (e.g. 79.0 for 79%), unlike the 0-1 fraction
+                        // convention other HealthKit percent quantities (oxygen saturation, body fat) use.
+                        weather["humidityPct"] = q.doubleValue(for: .percent())
                     }
                     if let c = meta[HKMetadataKeyWeatherCondition] as? NSNumber {
                         weather["conditionCode"] = c.intValue
