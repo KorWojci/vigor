@@ -77,6 +77,13 @@ export const sampleSchema = z.object({
 });
 export type SampleInput = z.infer<typeof sampleSchema>;
 
+const routePoint = z.object({
+  t: z.number().finite(), // seconds since the workout's startAt
+  lat: z.number().finite().min(-90).max(90),
+  lon: z.number().finite().min(-180).max(180),
+  ele: z.number().finite().optional().nullable(),
+});
+
 export const workoutSchema = z.object({
   activityType: z.string().min(1).max(80),
   title: z.string().max(200).optional().nullable(),
@@ -89,6 +96,8 @@ export const workoutSchema = z.object({
   maxHeartRate: z.number().finite().positive().optional().nullable(),
   sourceName: z.string().max(200).optional().nullable(),
   externalId: z.string().min(1).max(200).optional().nullable(),
+  /** GPS route, thinned by the client. ≤ 3000 points keeps even an ultra-distance event well under the body-size limit. */
+  route: z.array(routePoint).max(3000).optional().nullable(),
   metadata,
 });
 export type WorkoutInput = z.infer<typeof workoutSchema>;

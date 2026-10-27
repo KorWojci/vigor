@@ -202,4 +202,11 @@ CREATE TABLE body_measurements (
 CREATE INDEX idx_body_measurements_type_time ON body_measurements(type_key, measured_at);
 `,
   },
+  {
+    version: 2,
+    name: "workout routes",
+    sql: `
+ALTER TABLE workouts ADD COLUMN route TEXT;  -- JSON [[t,lat,lon,ele], ...], t = seconds since start_ms; NULL = no route
+`,
+  },
 ];

@@ -295,6 +295,31 @@ describe("health import", () => {
     expect(doImport(db, envelope({ workouts: [{ ...w, energyKcal: 310 }] })).summary.updated).toBe(1);
     expect(doImport(db, envelope({ deleted: [{ externalId: "w1", kind: "workout" }] })).summary.deleted).toBe(1);
   });
+
+  it("stores a workout's GPS route and treats a changed route as an update", () => {
+    const db = testDb();
+    const route = [
+      { t: 0, lat: 52.4069, lon: 16.9299, ele: 68.4 },
+      { t: 30, lat: 52.408, lon: 16.931 },
+    ];
+    const w = { activityType: "running", startAt: "2026-10-20T06:00:00Z", endAt: "2026-10-20T06:30:00Z", externalId: "wr1", route };
+    expect(doImport(db, envelope({ workouts: [w] })).summary.accepted).toBe(1);
+    const row = db.prepare("SELECT route FROM workouts WHERE external_id='wr1'").get() as { route: string };
+    expect(JSON.parse(row.route)).toEqual([[0, 52.4069, 16.9299, 68.4], [30, 52.408, 16.931, null]]);
+    // Same route re-sent → unchanged (skipped), not a spurious update.
+    expect(doImport(db, envelope({ workouts: [w] })).summary.skipped).toBe(1);
+    // A longer route → content hash changes → update, not a duplicate workout.
+    const longer = { ...w, route: [...route, { t: 60, lat: 52.409, lon: 16.932 }] };
+    expect(doImport(db, envelope({ workouts: [longer] })).summary.updated).toBe(1);
+    expect(db.prepare("SELECT COUNT(*) c FROM workouts WHERE external_id='wr1'").get()).toEqual({ c: 1 });
+  });
+
+  it("rejects a workout with more route points than the limit", () => {
+    const db = testDb();
+    const route = Array.from({ length: 3001 }, (_, i) => ({ t: i, lat: 52.4, lon: 16.9 }));
+    const w = { activityType: "running", startAt: "2026-10-20T06:00:00Z", endAt: "2026-10-20T06:30:00Z", externalId: "wr2", route };
+    expect(doImport(db, envelope({ workouts: [w] })).summary.rejected).toBe(1);
+  });
 });
 
 describe("parseTimestamp", () => {

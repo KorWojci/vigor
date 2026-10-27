@@ -87,13 +87,22 @@ open VigorSync.xcodeproj
 | File | Role |
 | --- | --- |
 | `HealthTypes.swift` | Vigor metric key ↔ HealthKit type and unit table. |
-| `SyncEngine.swift` | Anchored queries, payload building, upload, anchor advancement, status reports. |
+| `SyncEngine.swift` | Anchored queries, payload building, upload, anchor advancement, status reports. Also reads each workout's `HKWorkoutRoute`, thinned to roughly one point every 8s/15m, as `route` on the workout. |
 | `BackgroundSync.swift` | Background delivery, observer queries, BGAppRefreshTask. |
 | `APIClient.swift` | HTTP client (bearer header, JSON). |
 | `SettingsStore.swift` | Server URL, backfill and anchors (UserDefaults); token (Keychain, `AfterFirstUnlockThisDeviceOnly`). |
 | `ContentView.swift`, `VigorSyncApp.swift` | UI and app lifecycle. |
 
 > **Status:** the companion uses only documented public APIs, but it has **not** been compiled in this repository's CI (no macOS runner). Expect possible minor compile fixes for your Xcode version.
+
+## Workout routes
+
+The companion also syncs each workout's GPS route (`HKWorkoutRoute`), shown on the workout detail page. Two decisions follow directly from this app's "no external network calls" rule (see `CLAUDE.md`):
+
+- **No basemap.** A street or satellite map needs tile imagery fetched live from an outside service (Apple Maps, Google, Mapbox, even plain OpenStreetMap) — a network call this app deliberately never makes. The route is instead drawn as a plain-line SVG, to scale, with a start/finish marker and a distance scale bar (`src/components/RouteMap.tsx`) — the shape of where you went, not a map tile.
+- **Place name, looked up offline.** Reverse geocoding normally means sending your coordinates to a geocoding API. Instead, Vigor bundles a static, build-time-generated list of the world's cities with population ≥ 15,000 (`src/lib/geo/cities.json`, ~24k entries, trimmed from GeoNames data) and finds the nearest one itself (`src/lib/geo/nearest-city.ts`) — no network call, ever. A point more than 80 km from any known city gets no label rather than a misleading guess.
+
+Shortcuts has no action that reads workout routes, so this is companion-app only.
 
 ## Observing synchronisation
 

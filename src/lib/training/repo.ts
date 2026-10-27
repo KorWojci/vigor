@@ -1,6 +1,7 @@
 import type { DB } from "../db";
 import { normalizeExerciseName, sessionStats, type ExerciseKind, type SessionStats, type SetData } from "./calculations";
 import { refreshExerciseKinds } from "./hevy-import";
+import { decodeRoute, type RoutePoint } from "./route";
 
 export interface WorkoutListItem {
   id: number;
@@ -63,6 +64,7 @@ export function listWorkouts(db: DB, startMs: number, endMs: number): WorkoutLis
 export interface WorkoutDetail extends WorkoutListItem {
   notes: string | null;
   maxHr: number | null;
+  route: RoutePoint[] | null;
   exercises: { id: number; exerciseId: number; name: string; kind: ExerciseKind; notes: string | null; sets: (SetData & { id: number; setIndex: number })[]; stats: SessionStats }[];
 }
 
@@ -70,11 +72,13 @@ export function getWorkout(db: DB, id: number): WorkoutDetail | null {
   const w = db
     .prepare(
       `SELECT id, source, title, activity_type AS activityType, start_ms AS startMs, end_ms AS endMs, duration_s AS durationS,
-       energy_kcal AS energyKcal, distance_m AS distanceM, avg_hr AS avgHr, max_hr AS maxHr, source_name AS sourceName, notes
+       energy_kcal AS energyKcal, distance_m AS distanceM, avg_hr AS avgHr, max_hr AS maxHr, source_name AS sourceName, notes, route AS routeRaw
        FROM workouts WHERE id = ? AND deleted_at IS NULL`,
     )
-    .get(id) as (WorkoutListItem & { notes: string | null; maxHr: number | null }) | undefined;
+    .get(id) as (WorkoutListItem & { notes: string | null; maxHr: number | null; routeRaw: string | null }) | undefined;
   if (!w) return null;
+  const { routeRaw, ...w2 } = w;
+  const route = decodeRoute(routeRaw);
   const exercises = db
     .prepare(
       `SELECT we.id, we.exercise_id AS exerciseId, e.name, e.kind, we.notes FROM workout_exercises we
@@ -90,7 +94,8 @@ export function getWorkout(db: DB, id: number): WorkoutDetail | null {
     return { ...e, sets, stats: sessionStats(e.kind, sets) };
   });
   return {
-    ...w,
+    ...w2,
+    route,
     exerciseCount: full.length,
     setCount: full.reduce((a, e) => a + e.stats.workingSets, 0),
     volumeKg: full.reduce((a, e) => a + e.stats.volumeKg, 0),

@@ -34,6 +34,7 @@ Tests use in-memory SQLite (`tests/helpers.ts → testDb()`). Put new tests in `
 | Change aggregation | `src/lib/aggregation/aggregate.ts` (pure, unit-tested) |
 | Import API | `src/app/api/v1/health/*`, `src/lib/ingest/*` |
 | Hevy import / training math | `src/lib/training/*` |
+| Workout GPS routes | `src/lib/training/route.ts` (encode/decode), `src/components/RouteMap.tsx` (no-basemap SVG — see the invariant below on external calls), `src/lib/geo/` (offline nearest-city lookup, `cities.json` regeneration note at the top of `nearest-city.ts`) |
 | Dashboard figure | `src/components/VitruvianFigure.tsx` (original procedural SVG — do not replace it with a reproduction of the artwork) |
 | Styles / theme tokens | `src/app/globals.css` (CSS variables, light and dark) |
 | Settings schema | `src/lib/settings.ts` |

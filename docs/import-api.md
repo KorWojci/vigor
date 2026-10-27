@@ -56,7 +56,9 @@ Samples are rejected individually if the type is unknown, the unit cannot be con
 
 ### Workout
 
-`activityType` (required), `startAt`, `endAt` (required), and optionally `title`, `durationSeconds`, `energyKcal`, `distanceMeters`, `avgHeartRate`, `maxHeartRate`, `sourceName`, `externalId`, `metadata`.
+`activityType` (required), `startAt`, `endAt` (required), and optionally `title`, `durationSeconds`, `energyKcal`, `distanceMeters`, `avgHeartRate`, `maxHeartRate`, `sourceName`, `externalId`, `metadata`, `route`.
+
+`route`: an optional array of GPS points, ≤ 3000: `{ "t": 12.5, "lat": 52.4069, "lon": 16.9299, "ele": 68.4 }`. `t` is seconds since the workout's own `startAt` (not a timestamp); `ele` (metres) is optional. Points don't need to be evenly spaced, but should be sorted or close to it. There's no basemap — Vigor draws the route as a plain line, and separately looks up the nearest city from a small bundled offline list (no network call) to label where the workout happened.
 
 ### Metric types and units
 

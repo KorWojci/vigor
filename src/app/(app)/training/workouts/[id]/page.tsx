@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EnergyMinuteBars, WorkoutHrChart } from "@/components/charts";
+import { RouteMap } from "@/components/RouteMap";
 import { PageHead } from "@/components/ui";
+import { placeLabel } from "@/lib/geo/nearest-city";
 import { appContext, db } from "@/lib/server/context";
 import { cardioDetail, maxHeartRate, workoutWindowSamples } from "@/lib/training/cardio";
 import { getWorkout, listWorkouts } from "@/lib/training/repo";
+import { routeDistanceMeters } from "@/lib/training/route";
 import { formatDateTime } from "@/lib/time";
 import { formatDuration, formatNumber, toDisplay } from "@/lib/units";
 
@@ -41,10 +44,15 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
   const fastestPace = fullSplits.length ? Math.min(...fullSplits.map((x) => x.durationS / (x.distanceM / splitM))) : null;
   const zoneTotal = cardio?.zones?.reduce((a, z) => a + z.seconds, 0) ?? 0;
   const hasCardio = !!cardio && (cardio.hr.length > 0 || cardio.splits.length > 0 || cardio.energyPerMinute.length > 0);
+  const place = w.route && w.route.length ? placeLabel(w.route[0].lat, w.route[0].lon) : null;
 
   return (
     <>
-      <PageHead eyebrow={w.sourceName ?? w.source} title={w.title ?? w.activityType ?? "Workout"} sub={formatDateTime(w.startMs, tz)}>
+      <PageHead
+        eyebrow={w.sourceName ?? w.source}
+        title={w.title ?? w.activityType ?? "Workout"}
+        sub={<>{formatDateTime(w.startMs, tz)}{place ? ` · ${place}` : ""}</>}
+      >
         <Link href="/training" className="btn small">← Training</Link>
       </PageHead>
       <section className="grid grid-4">
@@ -133,11 +141,23 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
           <EnergyMinuteBars data={cardio.energyPerMinute} />
         </section>
       )}
+      {w.route && w.route.length > 1 && (
+        <section className="card section">
+          <div className="card-head">
+            <h2>Route</h2>
+            <span className="small muted">{place ?? "location not identified"} · {formatNumber(toDisplay(routeDistanceMeters(w.route), "m", settings.units).value, 2)} {toDisplay(routeDistanceMeters(w.route), "m", settings.units).unit}</span>
+          </div>
+          <RouteMap route={w.route} />
+          <p className="tiny faint" style={{ marginTop: 8 }}>
+            Drawn to scale from the GPS points recorded during the workout — there is no street or satellite background, by design (see the Apple Health sync docs on why).
+          </p>
+        </section>
+      )}
       {w.exerciseCount === 0 ? (
         <div className="card section">
           <p className="muted small">
             {hasCardio
-              ? "Heart rate, splits and energy are built from the Apple Health samples recorded during this workout. Route, elevation and running form are not synced yet."
+              ? `Heart rate, splits and energy are built from the Apple Health samples recorded during this workout.${w.route ? "" : " No route was recorded for it, or it hasn't synced yet."}`
               : "This workout came from Apple Health, which records a summary (type, duration, energy, distance, heart rate) but not exercises, sets or weights. No heart-rate or distance samples were found for its time window."}
           </p>
         </div>
