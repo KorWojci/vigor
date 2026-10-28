@@ -3,62 +3,21 @@
  * circle and a square, in two superimposed poses. Drawn procedurally — no reproduction of the
  * original artwork is used. Body regions are interactive and carry the user's measurements.
  */
+import { ARM_OUT, CX, LEG_STRAIGHT, limb, mirror, smooth, TORSO_PATH, type P, type W } from "@/lib/figure/body-outline";
 import type { FigureRegion } from "@/lib/body/measurement-types";
 
-type P = [number, number];
-type W = [number, number, number]; // x, y, half-width
-
-const CX = 280; // horizontal centre of the figure in the 560-wide viewBox
 const NAVEL: P = [CX, 222];
 const R = 176;
 const SQ = { x: CX - 150, y: 96, size: 300 };
 
-/** Smooth path through points (Catmull-Rom → cubic Bézier). */
-function smooth(points: P[]): string {
-  if (points.length < 2) return "";
-  let d = `M${points[0][0].toFixed(1)},${points[0][1].toFixed(1)}`;
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i - 1] ?? points[i];
-    const p1 = points[i];
-    const p2 = points[i + 1];
-    const p3 = points[i + 2] ?? p2;
-    const c1: P = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
-    const c2: P = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
-    d += ` C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
-  }
-  return d;
-}
-
-/** Two contour lines of a limb, offset from its centre line by the given half-widths. */
-function limb(spine: W[]): string {
-  const left: P[] = [];
-  const right: P[] = [];
-  spine.forEach(([x, y, w], i) => {
-    const a = spine[Math.max(0, i - 1)];
-    const b = spine[Math.min(spine.length - 1, i + 1)];
-    const dx = b[0] - a[0];
-    const dy = b[1] - a[1];
-    const len = Math.hypot(dx, dy) || 1;
-    const nx = -dy / len;
-    const ny = dx / len;
-    left.push([x + nx * w, y + ny * w]);
-    right.push([x - nx * w, y - ny * w]);
-  });
-  return `${smooth(left)} ${smooth(right)}`;
-}
-
-const mirror = (pts: W[]): W[] => pts.map(([x, y, w]) => [2 * CX - x, y, w]);
-const mirrorP = (pts: P[]): P[] => pts.map(([x, y]) => [2 * CX - x, y]);
-
-// Pose 1: arms horizontal, legs together.
-const armOut: W[] = [[CX - 40, 158, 9], [CX - 72, 159, 7.5], [CX - 108, 160, 6], [CX - 136, 160, 4.5], [CX - 146, 160, 3.5]];
-const legStraight: W[] = [[CX - 15, 262, 14], [CX - 15, 312, 9.5], [CX - 13, 340, 8.5], [CX - 11, 386, 4.5]];
-// Pose 2 (ghost): arms raised to the circle, legs spread to the circle.
+// Pose 1 (primary, shared with MuscleFigure): arms horizontal, legs together.
+const armOut = ARM_OUT;
+const legStraight = LEG_STRAIGHT;
+// Pose 2 (ghost, Vitruvian-only): arms raised to the circle, legs spread to the circle.
 const armUp: W[] = [[CX - 40, 154, 9], [CX - 74, 141, 7.5], [CX - 108, 128, 6], [CX - 134, 117, 4.5], [CX - 142, 114, 3.5]];
 const legSpread: W[] = [[CX - 14, 262, 14], [CX - 38, 310, 9.5], [CX - 50, 336, 8.5], [CX - 80, 380, 4.5]];
 
-const torsoLeft: P[] = [[CX - 9, 140], [CX - 30, 148], [CX - 42, 156], [CX - 40, 178], [CX - 32, 206], [CX - 27, 232], [CX - 30, 252], [CX - 28, 268]];
-const torso = smooth(torsoLeft) + " " + smooth(mirrorP(torsoLeft));
+const torso = TORSO_PATH;
 
 export interface RegionDatum {
   region: FigureRegion | "heart" | "head";

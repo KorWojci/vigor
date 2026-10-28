@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { SleepChart } from "@/components/charts";
+import { MuscleFigure } from "@/components/MuscleFigure";
 import { EmptyState, FlashMessage, PageHead } from "@/components/ui";
 import { TodayEditor } from "@/components/TodayEditor";
 import { TodayTile } from "@/components/TodayTile";
@@ -9,7 +10,9 @@ import { getSyncStatus } from "@/lib/ingest/sync-status";
 import { appContext, db } from "@/lib/server/context";
 import { getTodayLayout } from "@/lib/settings";
 import { formatDate, formatDateTime, formatRelative, previousRange, rangeFromDays } from "@/lib/time";
-import { listWorkouts } from "@/lib/training/repo";
+import { listExerciseMedia } from "@/lib/training/exercise-media";
+import { addActivityLoad, addExerciseLoad, isAssumedActivity, normalizeLoad, type ZoneLoad } from "@/lib/training/muscles";
+import { getWorkout, listWorkouts } from "@/lib/training/repo";
 import { formatDuration, formatNumber } from "@/lib/units";
 import type { UnitSystem } from "@/lib/units";
 
@@ -60,6 +63,24 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const rightNowHr = getLatestReading(database, "heart_rate");
   const sources = getAllSourcesBreakdown(database, range);
   const hasAnything = sources.length > 0 || workouts.length > 0;
+
+  const muscleRaw: ZoneLoad = {};
+  let assumedMuscleLoad = false;
+  for (const w of workouts) {
+    if (w.exerciseCount > 0) {
+      const full = getWorkout(database, w.id);
+      if (!full) continue;
+      const mediaByExercise = listExerciseMedia(database, full.exercises.map((e) => e.exerciseId));
+      for (const e of full.exercises) {
+        const media = mediaByExercise.get(e.exerciseId);
+        addExerciseLoad(muscleRaw, { workingSets: e.stats.workingSets, targetMuscles: media?.targetMuscles ?? [], secondaryMuscles: media?.secondaryMuscles ?? [] });
+      }
+    } else if (w.activityType && w.durationS) {
+      addActivityLoad(muscleRaw, w.activityType, w.durationS);
+      if (isAssumedActivity(w.activityType)) assumedMuscleLoad = true;
+    }
+  }
+  const muscleLoad = normalizeLoad(muscleRaw);
 
   return (
     <>
@@ -163,6 +184,17 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
               )}
             </div>
           </section>
+
+          {Object.keys(muscleLoad).length > 0 && (
+            <section className="card section">
+              <h2>Muscle load today</h2>
+              <MuscleFigure intensities={muscleLoad} />
+              <p className="tiny faint" style={{ marginTop: 8 }}>
+                Across all of today&rsquo;s training. Strength numbers come from logged sets and target muscles
+                {assumedMuscleLoad ? "; non-strength activities (a run, walk, yoga session, etc.) have load assumed from the activity type and duration" : ""} — not a measurement.
+              </p>
+            </section>
+          )}
 
           <section className="card section">
             <div className="card-head"><h2>Nutrition today</h2><Link href="/nutrition" className="small">Details →</Link></div>
