@@ -216,4 +216,26 @@ ALTER TABLE workouts ADD COLUMN route TEXT;  -- JSON [[t,lat,lon,ele], ...], t =
 ALTER TABLE workouts ADD COLUMN weather TEXT;  -- JSON { tempC, humidityPct, conditionCode }; NULL = none recorded
 `,
   },
+  {
+    version: 4,
+    name: "exercise media cache",
+    sql: `
+-- Caches exercise demonstration GIFs and muscle data fetched once (offline, out of band) from the
+-- ExerciseDB free API by scripts/sync-exercise-media.ts. Never fetched at request time — see the
+-- invariant on external network calls in AGENTS.md. The GIF file itself lives under
+-- <data>/exercise-media/, outside this table and outside git.
+CREATE TABLE exercise_media (
+  exercise_id INTEGER PRIMARY KEY REFERENCES exercises(id) ON DELETE CASCADE,
+  external_id TEXT NOT NULL,
+  matched_name TEXT NOT NULL,
+  match_score REAL NOT NULL,          -- 1 = exact normalized-name match; otherwise the closest match's token-overlap score
+  body_parts TEXT NOT NULL,           -- JSON string[]
+  target_muscles TEXT NOT NULL,       -- JSON string[]
+  secondary_muscles TEXT NOT NULL,    -- JSON string[]
+  equipments TEXT NOT NULL,           -- JSON string[]
+  gif_file TEXT NOT NULL,             -- filename under <data>/exercise-media/
+  synced_at INTEGER NOT NULL
+);
+`,
+  },
 ];

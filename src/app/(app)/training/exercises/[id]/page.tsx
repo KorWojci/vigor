@@ -4,6 +4,7 @@ import { MultiLineChart } from "@/components/charts";
 import { FlashMessage, PageHead } from "@/components/ui";
 import { appContext, db } from "@/lib/server/context";
 import { EXERCISE_KINDS, MAX_E1RM_REPS } from "@/lib/training/calculations";
+import { ATTRIBUTION, getExerciseMedia } from "@/lib/training/exercise-media";
 import { getExerciseHistory } from "@/lib/training/repo";
 import { dayKey, formatDate } from "@/lib/time";
 import { formatDuration, formatNumber, toDisplay } from "@/lib/units";
@@ -16,6 +17,7 @@ export default async function ExercisePage({ params, searchParams }: { params: P
   const h = getExerciseHistory(db(), Number(id));
   if (!h) notFound();
   const { exercise, sessions, records } = h;
+  const media = getExerciseMedia(db(), exercise.id);
   const kind = exercise.kind;
   const mu = settings.units === "imperial" ? "lb" : "kg";
   const m = (kg: number | null) => (kg === null ? null : Math.round(toDisplay(kg, "kg", settings.units).value * 10) / 10);
@@ -81,6 +83,24 @@ export default async function ExercisePage({ params, searchParams }: { params: P
         ))}
         {records.length === 0 && <div className="card"><p className="muted">No personal records yet — sets need weight, reps, time or distance.</p></div>}
       </section>
+
+      {media && (
+        <section className="card section">
+          <div className="card-head">
+            <h2>How to perform it</h2>
+            {media.matchScore < 1 && (
+              <span className="tiny faint">closest match ({Math.round(media.matchScore * 100)}%): &ldquo;{media.matchedName}&rdquo; — may not be this exact exercise</span>
+            )}
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element -- cached locally, served by our own authenticated route, not a remote URL */}
+          <img src={`/api/exercise-media/${exercise.id}`} alt={`${media.matchedName} demonstration`} style={{ maxWidth: 320, borderRadius: 8, display: "block" }} />
+          <p className="small muted" style={{ marginTop: 8 }}>
+            Targets {media.targetMuscles.join(", ") || "—"}
+            {media.secondaryMuscles.length > 0 ? `; also works ${media.secondaryMuscles.join(", ")}` : ""}.
+          </p>
+          <p className="tiny faint">{ATTRIBUTION}</p>
+        </section>
+      )}
 
       <section className="card section">
         <h2>Progress</h2>

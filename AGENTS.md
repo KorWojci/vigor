@@ -40,6 +40,8 @@ Tests use in-memory SQLite (`tests/helpers.ts → testDb()`). Put new tests in `
 | Styles / theme tokens | `src/app/globals.css` (CSS variables, light and dark) |
 | Settings schema | `src/lib/settings.ts` |
 | Dashboard widgets & layout | `src/lib/dashboard-layout.ts` (pure, tested), editor `src/components/DashboardEditor.tsx` |
+| Exercise demo GIFs / muscle data | `src/lib/training/exercise-media.ts` (name matching + cache DB access), `scripts/sync-exercise-media.ts` (the one offline exception to "no external network calls" — run by hand, never at request time), served by `src/app/api/exercise-media/[exerciseId]/route.ts` |
+| "Muscles trained" breakdown | `src/lib/training/muscles.ts` (muscle→zone mapping + aggregation, pure, tested), `src/components/MuscleLoad.tsx` (plain ranked bars — no body diagram) |
 
 ## Known gaps / good next tasks
 

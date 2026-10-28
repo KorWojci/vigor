@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EnergyMinuteBars, WorkoutHrChart } from "@/components/charts";
+import { MuscleLoad } from "@/components/MuscleLoad";
 import { RouteMap } from "@/components/RouteMap";
 import { PageHead } from "@/components/ui";
 import { placeLabel } from "@/lib/geo/nearest-city";
 import { appContext, db } from "@/lib/server/context";
 import { cardioDetail, maxHeartRate, workoutWindowSamples } from "@/lib/training/cardio";
+import { listExerciseMedia } from "@/lib/training/exercise-media";
+import { musclesTrained } from "@/lib/training/muscles";
 import { getWorkout, listWorkouts } from "@/lib/training/repo";
 import { routeDistanceMeters } from "@/lib/training/route";
 import { weatherConditionLabel } from "@/lib/training/weather";
@@ -45,6 +48,13 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
   const fastestPace = fullSplits.length ? Math.min(...fullSplits.map((x) => x.durationS / (x.distanceM / splitM))) : null;
   const zoneTotal = cardio?.zones?.reduce((a, z) => a + z.seconds, 0) ?? 0;
   const hasCardio = !!cardio && (cardio.hr.length > 0 || cardio.splits.length > 0 || cardio.energyPerMinute.length > 0);
+  const mediaByExercise = w.exerciseCount > 0 ? listExerciseMedia(database, w.exercises.map((e) => e.exerciseId)) : new Map();
+  const intensities = musclesTrained(
+    w.exercises.map((e) => {
+      const m = mediaByExercise.get(e.exerciseId);
+      return { workingSets: e.stats.workingSets, targetMuscles: m?.targetMuscles ?? [], secondaryMuscles: m?.secondaryMuscles ?? [] };
+    }),
+  );
   const place = w.route && w.route.length ? placeLabel(w.route[0].lat, w.route[0].lon) : null;
   const weatherParts: string[] = [];
   if (w.weather?.tempC !== null && w.weather?.tempC !== undefined) {
@@ -161,6 +171,13 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
           <p className="tiny faint" style={{ marginTop: 8 }}>
             Drawn to scale from the GPS points recorded during the workout — there is no street or satellite background, by design (see the Apple Health sync docs on why).
           </p>
+        </section>
+      )}
+      {Object.keys(intensities).length > 0 && (
+        <section className="card section">
+          <h2>Muscles trained</h2>
+          <MuscleLoad intensities={intensities} />
+          <p className="tiny faint" style={{ marginTop: 8 }}>Estimated from each exercise&apos;s primary and secondary muscles, weighted by working sets — not a measurement.</p>
         </section>
       )}
       {w.exerciseCount === 0 ? (
