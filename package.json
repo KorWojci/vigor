@@ -17,7 +17,6 @@
     "test:watch": "vitest",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed-demo": "tsx scripts/seed-demo.ts",
-    "sync:exercise-media": "tsx scripts/sync-exercise-media.ts",
     "check": "npm run lint && npm run typecheck && npm test"
   },
   "dependencies": {

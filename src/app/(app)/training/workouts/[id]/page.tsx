@@ -1,14 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EnergyMinuteBars, WorkoutHrChart } from "@/components/charts";
-import { MuscleFigure } from "@/components/MuscleFigure";
 import { RouteMap } from "@/components/RouteMap";
 import { PageHead } from "@/components/ui";
 import { placeLabel } from "@/lib/geo/nearest-city";
 import { appContext, db } from "@/lib/server/context";
 import { cardioDetail, maxHeartRate, workoutWindowSamples } from "@/lib/training/cardio";
-import { listExerciseMedia } from "@/lib/training/exercise-media";
-import { addActivityLoad, addExerciseLoad, isAssumedActivity, normalizeLoad, type ZoneLoad } from "@/lib/training/muscles";
 import { getWorkout, listWorkouts } from "@/lib/training/repo";
 import { routeDistanceMeters } from "@/lib/training/route";
 import { weatherConditionLabel } from "@/lib/training/weather";
@@ -48,19 +45,6 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
   const fastestPace = fullSplits.length ? Math.min(...fullSplits.map((x) => x.durationS / (x.distanceM / splitM))) : null;
   const zoneTotal = cardio?.zones?.reduce((a, z) => a + z.seconds, 0) ?? 0;
   const hasCardio = !!cardio && (cardio.hr.length > 0 || cardio.splits.length > 0 || cardio.energyPerMinute.length > 0);
-  const rawLoad: ZoneLoad = {};
-  let assumed = false;
-  if (w.exerciseCount > 0) {
-    const mediaByExercise = listExerciseMedia(database, w.exercises.map((e) => e.exerciseId));
-    for (const e of w.exercises) {
-      const media = mediaByExercise.get(e.exerciseId);
-      addExerciseLoad(rawLoad, { workingSets: e.stats.workingSets, targetMuscles: media?.targetMuscles ?? [], secondaryMuscles: media?.secondaryMuscles ?? [] });
-    }
-  } else if (w.activityType && w.durationS) {
-    addActivityLoad(rawLoad, w.activityType, w.durationS);
-    assumed = isAssumedActivity(w.activityType);
-  }
-  const intensities = normalizeLoad(rawLoad);
   const place = w.route && w.route.length ? placeLabel(w.route[0].lat, w.route[0].lon) : null;
   const weatherParts: string[] = [];
   if (w.weather?.tempC !== null && w.weather?.tempC !== undefined) {
@@ -176,17 +160,6 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
           <RouteMap route={w.route} />
           <p className="tiny faint" style={{ marginTop: 8 }}>
             Drawn to scale from the GPS points recorded during the workout — there is no street or satellite background, by design (see the Apple Health sync docs on why).
-          </p>
-        </section>
-      )}
-      {Object.keys(intensities).length > 0 && (
-        <section className="card section">
-          <h2>Muscles trained</h2>
-          <MuscleFigure intensities={intensities} />
-          <p className="tiny faint" style={{ marginTop: 8 }}>
-            {assumed
-              ? `Assumed from the activity type (${w.activityType}) and duration — ${w.sourceName ?? "Apple Health"} doesn't record exercises or target muscles for this kind of workout, so this isn't a measurement.`
-              : "Estimated from each exercise's primary and secondary muscles, weighted by working sets — not a measurement."}
           </p>
         </section>
       )}
