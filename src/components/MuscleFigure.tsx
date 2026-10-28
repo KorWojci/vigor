@@ -82,10 +82,10 @@ function Figure({ title, anchors, intensities }: { title: string; anchors: Ancho
 export function MuscleFigure({ intensities }: { intensities: ZoneLoad }) {
   return (
     <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-      <div style={{ flex: "1 1 240px", maxWidth: 280 }}>
+      <div style={{ flex: "1 1 360px", maxWidth: 440 }}>
         <Figure title="Front" anchors={FRONT_ANCHORS} intensities={intensities} />
       </div>
-      <div style={{ flex: "1 1 240px", maxWidth: 280 }}>
+      <div style={{ flex: "1 1 360px", maxWidth: 440 }}>
         <Figure title="Back" anchors={BACK_ANCHORS} intensities={intensities} />
       </div>
     </div>
