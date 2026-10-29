@@ -21,7 +21,10 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
   const database = db();
   const w = getWorkout(database, Number(id));
   if (!w) notFound();
-  const linked = w.source === "hevy" ? listWorkouts(database, w.startMs - 1, w.startMs + 1).find((x) => x.id === w.id)?.linked : null;
+  // Pad well beyond the workout's own span: the matching Apple Health workout's start/end
+  // commonly differs from Hevy's by seconds to minutes, and listWorkouts needs both ends in range.
+  const padMs = 4 * 3600 * 1000;
+  const linked = w.source === "hevy" ? listWorkouts(database, w.startMs - padMs, (w.endMs ?? w.startMs) + padMs).find((x) => x.id === w.id)?.linked : null;
   const mu = settings.units === "imperial" ? "lb" : "kg";
   const m = (kg: number) => formatNumber(toDisplay(kg, "kg", settings.units).value, 1);
   const energy = w.energyKcal ?? linked?.energyKcal ?? null;
