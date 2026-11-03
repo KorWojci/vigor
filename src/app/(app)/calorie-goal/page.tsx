@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { EmptyState, FlashMessage, Notice, PageHead } from "@/components/ui";
-import { getLatestReading, getMetricSummary } from "@/lib/aggregation/series";
+import { getDailySeries, getLatestReading, getMetricSummary } from "@/lib/aggregation/series";
 import { ACTIVITY_LEVELS, classifyActivityLevel, estimateTdee, MIN_DAYS_FOR_MEASURED, planWeightGoal } from "@/lib/health/calorie-goal";
+import { weightTrend } from "@/lib/health/weight-trend";
 import { appContext, db } from "@/lib/server/context";
 import { formatDate, previousRange, rangeFromDays } from "@/lib/time";
 import { displayUnitFor, formatNumber, toDisplay } from "@/lib/units";
@@ -75,6 +76,14 @@ export default async function CalorieGoalPage({ searchParams }: { searchParams: 
         nowMs: Date.now(),
       })
     : null;
+
+  // Actual logged weight trend, independent of the calorie math above — a sanity check against it.
+  const weightRange = rangeFromDays(90, tz);
+  const weightHistory = getDailySeries(database, "body_mass", weightRange, tz)
+    .filter((d) => d.at != null)
+    .map((d) => ({ atMs: d.at!, weightKg: d.value }));
+  const actualTrend = weightTrend(weightHistory);
+  const trendForecastMs = actualTrend && goal.targetWeightKg != null ? actualTrend.dateToReach(goal.targetWeightKg) : null;
 
   const rateOptions = [0.25, 0.5, 0.75, 1, 1.25, 1.5];
 
@@ -185,6 +194,38 @@ export default async function CalorieGoalPage({ searchParams }: { searchParams: 
           )}
         </div>
       )}
+
+      <div className="card section">
+        <h2>Actual weight trend</h2>
+        {!actualTrend ? (
+          <p className="muted small">Not enough weight readings yet for a trend — needs at least 5 readings spanning 14+ days. <Link href="/body?type=weight">Log your weight</Link> regularly to see one here.</p>
+        ) : (() => {
+          const perWeek = actualTrend.slopeKgPerDay * 7;
+          const steady = Math.abs(perWeek) / Math.max(1, actualTrend.currentKg) < 0.0015;
+          return (
+            <>
+              <div className="row" style={{ gap: 28, flexWrap: "wrap" }}>
+                <div className="tile">
+                  <span className="label">Trend (last 90 days)</span>
+                  <span className="value">{steady ? "Steady" : `${formatNumber(Math.abs(toDisplay(perWeek, "kg", units).value), 2)} ${weightUnit}/wk`}</span>
+                  <span className="meta">{steady ? "no clear trend in your logged weight" : perWeek < 0 ? "losing" : "gaining"} · R² {(actualTrend.r2 * 100).toFixed(0)}%</span>
+                </div>
+                {goal.targetWeightKg != null && (
+                  <div className="tile">
+                    <span className="label">At this real-world rate</span>
+                    <span className="value" style={{ fontSize: "1.2rem" }}>{trendForecastMs != null ? formatDate(trendForecastMs, tz) : "—"}</span>
+                    <span className="meta">{trendForecastMs != null ? "vs. the calorie-math estimate above" : "not currently trending toward your target"}</span>
+                  </div>
+                )}
+              </div>
+              <p className="tiny faint" style={{ marginTop: 10 }}>
+                A straight-line fit through your actual logged weight readings — independent of the calorie math above, so the two can be compared. If they disagree by a lot, your
+                real intake or activity likely differs from what&apos;s measured or assumed above.
+              </p>
+            </>
+          );
+        })()}
+      </div>
 
       {dietary && dietary.daysWithData > 0 && plan?.dailyTargetKcal != null && (
         <div className="card section">

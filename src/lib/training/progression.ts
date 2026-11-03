@@ -1,3 +1,5 @@
+import { linearRegression } from "../stats";
+
 /**
  * Linear trend through a lift's estimated-1RM history, for the "Progress" chart on the exercise
  * page. Least-squares regression in kg/day — canonical units in, canonical units out; convert for
@@ -33,25 +35,8 @@ export function e1rmTrend(points: E1rmPoint[]): E1rmTrend | null {
   const last = points[points.length - 1].startMs;
   if ((last - first) / 86_400_000 < MIN_SPAN_DAYS) return null;
 
-  const xs = points.map((p) => (p.startMs - first) / 86_400_000);
-  const ys = points.map((p) => p.e1rmKg);
-  const n = xs.length;
-  const meanX = xs.reduce((a, b) => a + b, 0) / n;
-  const meanY = ys.reduce((a, b) => a + b, 0) / n;
-  let ssXY = 0;
-  let ssXX = 0;
-  let ssYY = 0;
-  for (let i = 0; i < n; i++) {
-    const dx = xs[i] - meanX;
-    const dy = ys[i] - meanY;
-    ssXY += dx * dy;
-    ssXX += dx * dx;
-    ssYY += dy * dy;
-  }
-  if (ssXX === 0) return null; // every session on the same day — no time axis to regress on
-  const slope = ssXY / ssXX;
-  const intercept = meanY - slope * meanX;
-  const r2 = ssYY === 0 ? 1 : (ssXY * ssXY) / (ssXX * ssYY);
-  const predictAt = (ms: number) => intercept + slope * ((ms - first) / 86_400_000);
-  return { slopeKgPerDay: slope, currentKg: predictAt(last), r2, predictAt };
+  const fit = linearRegression(points.map((p) => ({ x: (p.startMs - first) / 86_400_000, y: p.e1rmKg })));
+  if (!fit) return null; // every session on the same day — no time axis to regress on
+  const predictAt = (ms: number) => fit.predict((ms - first) / 86_400_000);
+  return { slopeKgPerDay: fit.slope, currentKg: predictAt(last), r2: fit.r2, predictAt };
 }
