@@ -149,6 +149,7 @@ export function previousRange(r: DateRange, tz: string): DateRange {
 }
 
 export const RANGE_PRESETS = [
+  { key: "1d", label: "Today", days: 1 },
   { key: "7d", label: "7 days", days: 7 },
   { key: "30d", label: "30 days", days: 30 },
   { key: "90d", label: "90 days", days: 90 },
