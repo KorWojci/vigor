@@ -4,6 +4,7 @@ import { MultiLineChart } from "@/components/charts";
 import { FlashMessage, PageHead } from "@/components/ui";
 import { appContext, db } from "@/lib/server/context";
 import { EXERCISE_KINDS, MAX_E1RM_REPS } from "@/lib/training/calculations";
+import { e1rmTrend } from "@/lib/training/progression";
 import { getExerciseHistory } from "@/lib/training/repo";
 import { dayKey, formatDate } from "@/lib/time";
 import { formatDuration, formatNumber, toDisplay } from "@/lib/units";
@@ -20,10 +21,14 @@ export default async function ExercisePage({ params, searchParams }: { params: P
   const mu = settings.units === "imperial" ? "lb" : "kg";
   const m = (kg: number | null) => (kg === null ? null : Math.round(toDisplay(kg, "kg", settings.units).value * 10) / 10);
   const weighted = kind === "weighted" || kind === "weighted_bodyweight";
+  const trend = weighted
+    ? e1rmTrend(sessions.filter((s) => s.stats.bestE1RM !== null).map((s) => ({ startMs: s.startMs, e1rmKg: s.stats.bestE1RM! })))
+    : null;
 
   const chartData = sessions.map((s) => ({
     day: dayKey(s.startMs, tz),
     e1rm: m(s.stats.bestE1RM),
+    trend: trend ? m(trend.predictAt(s.startMs)) : null,
     maxWeight: m(s.stats.maxWeightKg),
     volume: m(s.stats.volumeKg),
     reps: s.stats.totalReps,
@@ -36,6 +41,7 @@ export default async function ExercisePage({ params, searchParams }: { params: P
     weighted
       ? [
           { key: "e1rm", label: `Estimated 1RM (${mu})`, color: "var(--chart-1)" },
+          ...(trend ? [{ key: "trend", label: "Trend", color: "var(--chart-1)", dashed: true }] : []),
           { key: "maxWeight", label: `Heaviest set (${mu})`, color: "var(--chart-2)", dashed: true },
           { key: "volume", label: `Volume (${mu})`, color: "var(--chart-3)", axis: "right" as const },
         ]
@@ -86,6 +92,17 @@ export default async function ExercisePage({ params, searchParams }: { params: P
         <h2>Progress</h2>
         {sessions.length < 2 ? <p className="muted">Progress charts appear after two sessions.</p> : <MultiLineChart data={chartData} series={series} decimals={1} />}
         {weighted && <p className="tiny faint">Estimated 1RM uses the Epley formula on working sets of 1–{MAX_E1RM_REPS} reps. {kind === "weighted_bodyweight" ? "Weight is the added load only." : ""}</p>}
+        {weighted && trend && (() => {
+          const perMonth = trend.slopeKgPerDay * 30;
+          const steady = Math.abs(perMonth) / Math.max(1, trend.currentKg) < 0.01;
+          const rate = `${formatNumber(Math.abs(m(perMonth)!), 1)} ${mu}/month`;
+          return (
+            <p className="small" style={{ marginTop: 6 }}>
+              {steady ? `Holding steady — no clear trend over this time` : `Trending ${perMonth > 0 ? "up" : "down"} ~${rate}`}
+              <span className="tiny faint"> (dashed line is the trend; R² {(trend.r2 * 100).toFixed(0)}% — how well it fits the actual sessions)</span>
+            </p>
+          );
+        })()}
       </section>
 
       <section className="grid grid-2 section">
