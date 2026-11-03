@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { SleepHypnogram } from "@/components/charts";
 import { EmptyState, FlashMessage, PageHead } from "@/components/ui";
+import { SleepHypnogram } from "@/components/SleepHypnogram";
 import { TodayEditor } from "@/components/TodayEditor";
 import { TodayTile } from "@/components/TodayTile";
 import { getAllSourcesBreakdown, getLatestReading, getMetricSummary, getSleepNights, getSleepStageTimeline, type MetricSummary } from "@/lib/aggregation/series";
@@ -129,7 +129,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                     )}
                     <div className="tile"><span className="label">Bedtime – wake</span><span className="value" style={{ fontSize: "1.1rem" }}>{formatDateTime(lastNight.startMs, tz).split(", ")[1]} – {formatDateTime(lastNight.endMs, tz).split(", ")[1]}</span></div>
                   </div>
-                  <SleepHypnogram segments={getSleepStageTimeline(database, lastNight.startMs, lastNight.endMs)} startMs={lastNight.startMs} endMs={lastNight.endMs} tz={tz} height={160} />
+                  <SleepHypnogram segments={getSleepStageTimeline(database, lastNight.startMs, lastNight.endMs)} startMs={lastNight.startMs} endMs={lastNight.endMs} tz={tz} />
                 </>
               ) : (
                 <p className="muted">No sleep recorded for last night yet. It usually syncs once you wake and open the Health app.</p>

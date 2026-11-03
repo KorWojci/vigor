@@ -292,6 +292,12 @@ tr:last-child td { border-bottom: 0; }
 
 .chart-box { width: 100%; height: 280px; }
 .chart-box.small { height: 180px; }
+
+.hypnogram-label { fill: var(--ink-soft); font-family: var(--sans); font-size: 11px; font-weight: 600; }
+.hypnogram-row-line { stroke: var(--line); stroke-width: 1; }
+.hypnogram-tick-line { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 3; }
+.hypnogram-tick-label { fill: var(--ink-faint); font-family: var(--sans); font-size: 10px; }
+.hypnogram-thread { stroke: var(--ink-faint); stroke-width: 1.2; opacity: 0.5; }
 .recharts-cartesian-axis-tick-value { fill: var(--ink-faint); font-size: 11px; }
 .recharts-tooltip-wrapper .tt { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 8px; padding: 8px 10px; font-size: 0.82rem; box-shadow: 0 6px 20px rgba(0,0,0,.12); }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.8rem; color: var(--ink-soft); }

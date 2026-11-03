@@ -20,7 +20,6 @@ import {
   YAxis,
 } from "recharts";
 import { useRouter } from "next/navigation";
-import { formatDateTime } from "@/lib/time";
 
 export interface ChartPoint {
   day: string;
@@ -153,52 +152,6 @@ export function SleepChart({ data, height = 280 }: { data: SleepPoint[]; height?
           <Bar dataKey="rem" name="REM" stackId="s" fill="var(--chart-3)" isAnimationActive={false} />
           <Bar dataKey="unspecified" name="Asleep (no stages)" stackId="s" fill="var(--chart-5)" isAnimationActive={false} />
           <Bar dataKey="awake" name="Awake" stackId="s" fill="var(--chart-4)" fillOpacity={0.5} radius={[3, 3, 0, 0]} isAnimationActive={false} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-export interface SleepSegment {
-  category: string;
-  startMs: number;
-  endMs: number;
-}
-
-const STAGE_LABEL: Record<string, string> = { awake: "Awake", asleep_rem: "REM", asleep_core: "Core", asleep_deep: "Deep", asleep_unspecified: "Asleep" };
-/** Top-to-bottom row order, matching the usual clinical hypnogram convention (lightest at top). */
-const STAGE_ORDER = ["Awake", "REM", "Core", "Asleep", "Deep"];
-const STAGE_COLOR: Record<string, string> = { Awake: "var(--chart-4)", REM: "var(--chart-3)", Core: "var(--chart-1)", Asleep: "var(--chart-5)", Deep: "var(--chart-2)" };
-
-/** One night's sleep stages over time (a hypnogram): y is the stage, x is the clock time. */
-export function SleepHypnogram({ segments, startMs, endMs, tz, height = 180 }: { segments: SleepSegment[]; startMs: number; endMs: number; tz: string; height?: number }) {
-  const clock = (ms: number) => formatDateTime(ms, tz).split(", ")[1];
-  const rows = segments.map((s) => ({ stage: STAGE_LABEL[s.category] ?? s.category, range: [s.startMs, s.endMs] as [number, number] }));
-  const present = STAGE_ORDER.filter((s) => rows.some((r) => r.stage === s));
-  if (rows.length === 0) return <p className="muted small">No staged sleep data for this night.</p>;
-  return (
-    <div style={{ width: "100%", height }}>
-      <ResponsiveContainer>
-        <BarChart data={rows} layout="vertical" margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="var(--line)" strokeDasharray="2 4" horizontal={false} />
-          <XAxis type="number" domain={[startMs, endMs]} tickFormatter={clock} {...axisProps} minTickGap={50} />
-          <YAxis type="category" dataKey="stage" domain={present} allowDuplicatedCategory={false} {...axisProps} width={56} />
-          <Tooltip
-            cursor={{ fill: "var(--bronze-soft)" }}
-            content={({ active, payload }) => {
-              const r = active ? (payload?.[0]?.payload as { stage: string; range: [number, number] } | undefined) : undefined;
-              if (!r) return null;
-              return (
-                <div className="tt">
-                  <div className="faint tiny">{r.stage}</div>
-                  <div>{clock(r.range[0])} – {clock(r.range[1])} <span className="faint tiny">({fmt((r.range[1] - r.range[0]) / 60_000, 0)} min)</span></div>
-                </div>
-              );
-            }}
-          />
-          <Bar dataKey="range" barSize={16} isAnimationActive={false} radius={[3, 3, 3, 3]}>
-            {rows.map((r, i) => <Cell key={i} fill={STAGE_COLOR[r.stage] ?? "var(--chart-1)"} />)}
-          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
