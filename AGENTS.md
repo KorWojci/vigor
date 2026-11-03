@@ -37,6 +37,7 @@ Tests use in-memory SQLite (`tests/helpers.ts → testDb()`). Put new tests in `
 | Workout GPS routes | `src/lib/training/route.ts` (encode/decode), `src/components/RouteMap.tsx` (no-basemap SVG — see the invariant below on external calls), `src/lib/geo/` (offline nearest-city lookup, `cities.json` regeneration note at the top of `nearest-city.ts`) |
 | Workout weather | `src/lib/training/weather.ts` (encode/decode, `HKWeatherCondition` label table) — read from metadata Apple Watch already attaches on-device; Vigor never calls a weather API |
 | Dashboard figure | `src/components/VitruvianFigure.tsx` (original procedural SVG — do not replace it with a reproduction of the artwork) |
+| Calorie goal / TDEE | `src/lib/health/calorie-goal.ts` (pure math: Mifflin-St Jeor BMR fallback, weight-goal projection), `src/app/(app)/calorie-goal/*` (prefers measured Apple Health energy over the formula) |
 | Styles / theme tokens | `src/app/globals.css` (CSS variables, light and dark) |
 | Settings schema | `src/lib/settings.ts` |
 | Dashboard widgets & layout | `src/lib/dashboard-layout.ts` (pure, tested), editor `src/components/DashboardEditor.tsx` |

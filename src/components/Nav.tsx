@@ -11,6 +11,7 @@ export const NAV_ITEMS = [
   { href: "/nutrition", label: "Nutrition", icon: icons.nutrition },
   { href: "/training", label: "Training", icon: icons.training },
   { href: "/body", label: "Body measurements", icon: icons.body },
+  { href: "/calorie-goal", label: "Calorie goal", icon: icons.goal },
   { href: "/integrations/apple-health", label: "Apple Health sync", icon: icons.apple },
   { href: "/settings", label: "Settings", icon: icons.settings },
 ];

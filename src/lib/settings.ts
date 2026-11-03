@@ -47,6 +47,14 @@ export const settingsSchema = {
     .optional(),
   movingAverageDays: z.union([z.literal(0), z.literal(7), z.literal(14), z.literal(30)]).default(7),
   syncIntervalMinutes: z.number().int().min(15).max(24 * 60).default(60),
+  /** Calorie-goal calculator (src/lib/health/calorie-goal.ts). Weights are canonical kg. */
+  weightGoal: z
+    .object({
+      targetWeightKg: z.number().positive().max(400).optional(),
+      weeklyRateKg: z.number().min(0).max(1.5).default(0.5),
+      activityLevel: z.enum(["sedentary", "light", "moderate", "active", "very_active"]).default("moderate"),
+    })
+    .default({ weeklyRateKg: 0.5, activityLevel: "moderate" }),
 } as const;
 
 type Schemas = typeof settingsSchema;

@@ -86,6 +86,14 @@ Period values (dashboard tiles) are the mean of daily values over days **with da
 - `calculations.ts`: Epley e1RM for working sets of 1–12 reps; volume = Σ weight × reps over working sets for weighted kinds; assisted exercises track the least assistance. Warm-up sets are excluded from stats.
 - `listWorkouts()` links each Hevy workout with the Apple Health workout covering more than 50% of the same time, so one session is not listed twice.
 
+## Calorie goal (`src/lib/health/calorie-goal.ts`)
+
+- Pure functions, no DB access: `mifflinStJeorBmr`, `estimateTdee`, `planWeightGoal`. The page (`src/app/(app)/calorie-goal/page.tsx`) supplies the inputs.
+- TDEE prefers measured 30-day averages of `active_energy`/`basal_energy` (via `getMetricSummary`, so it's deduplicated the same way the rest of the app is) when at least 7 of those days have data; otherwise it falls back to the Mifflin-St Jeor formula, labelled as estimated rather than measured.
+- The goal (target weight, weekly pace, activity level) lives in `settings.weightGoal` — no new table.
+- Direction (lose/gain) is derived from target vs. the latest logged weight at render time, not stored, so it stays correct as weight changes.
+- Safety floor: 1.2× BMR when computable, else a sex-based absolute minimum (1200/1500 kcal) — a warning is shown rather than silently capping the target.
+
 ## Adding things
 
 - **A new health metric:** add a `MetricDef` to `src/lib/metrics/catalog.ts` (key, canonical unit, aggregation). If needed, add unit aliases to `src/lib/units.ts` and a HealthKit mapping to `ios/VigorSync/Sources/HealthTypes.swift`. No migration is needed. Add a test in `tests/`.
