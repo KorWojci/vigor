@@ -24,7 +24,7 @@ Tests use in-memory SQLite (`tests/helpers.ts → testDb()`). Put new tests in `
 6. **Migrations are append-only** (`src/lib/db/migrations.ts`).
 7. **Every page and server action calls `requireUser()`/`appContext()`.** The middleware is only a convenience redirect.
 8. **The import contract is versioned.** Additive optional fields are fine; breaking changes need `schemaVersion: 2`. Update `docs/import-api.md` together with `src/lib/ingest/schema.ts`.
-9. **No external network calls** from server or client (no CDNs, fonts or analytics).
+9. **No external network calls** from server or client (no CDNs, fonts or analytics), with one sanctioned exception: `src/lib/ai/gemini.ts` calls the Gemini API, for the weekly recap and the per-workout rating, and only when the user explicitly clicks Generate/Regenerate — never automatically, never on a schedule. Any further exception needs the same bar: explicit, user-triggered, documented here.
 
 ## Where things live
 
@@ -38,6 +38,7 @@ Tests use in-memory SQLite (`tests/helpers.ts → testDb()`). Put new tests in `
 | Workout weather | `src/lib/training/weather.ts` (encode/decode, `HKWeatherCondition` label table) — read from metadata Apple Watch already attaches on-device; Vigor never calls a weather API |
 | Dashboard figure | `src/components/VitruvianFigure.tsx` (original procedural SVG — do not replace it with a reproduction of the artwork) |
 | Calorie goal / TDEE | `src/lib/health/calorie-goal.ts` (pure math: Mifflin-St Jeor BMR fallback, weight-goal projection), `src/app/(app)/calorie-goal/*` (prefers measured Apple Health energy over the formula) |
+| AI recap / workout rating / sleep summary | `src/lib/ai/gemini.ts` (the one `fetch` call to Gemini, shared), `src/lib/ai/weekly-recap.ts` ("full" scope: Dashboard/Today; "training" scope: Training page, training facts only) + `workout-rating.ts` + `sleep-summary.ts` (data gathering, prompts, structured-JSON output), `src/lib/ai/repo.ts` (`weekly_recaps` keyed by week+scope, `workout_ratings`, `sleep_summaries`), `src/app/ai-actions.ts`, `src/components/WeeklyRecapCard.tsx` + `WorkoutRatingCard.tsx` + `SleepSummaryCard.tsx` — needs `GEMINI_API_KEY` in `.env`; see the exception noted in invariant 9 |
 | Styles / theme tokens | `src/app/globals.css` (CSS variables, light and dark) |
 | Settings schema | `src/lib/settings.ts` |
 | Dashboard widgets & layout | `src/lib/dashboard-layout.ts` (pure, tested), editor `src/components/DashboardEditor.tsx` |

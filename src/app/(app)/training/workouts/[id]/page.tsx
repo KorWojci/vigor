@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EnergyMinuteBars, WorkoutHrChart } from "@/components/charts";
 import { RouteMap } from "@/components/RouteMap";
-import { PageHead } from "@/components/ui";
+import { FlashMessage, PageHead } from "@/components/ui";
+import { WorkoutRatingCard } from "@/components/WorkoutRatingCard";
+import { getWorkoutRating } from "@/lib/ai/repo";
+import { config } from "@/lib/config";
 import { placeLabel } from "@/lib/geo/nearest-city";
 import { appContext, db } from "@/lib/server/context";
 import { cardioDetail, maxHeartRate, workoutWindowSamples } from "@/lib/training/cardio";
@@ -15,12 +18,14 @@ import { formatDuration, formatNumber, toDisplay } from "@/lib/units";
 /** "5:42" from seconds. */
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60) % 60).padStart(2, "0")}`;
 
-export default async function WorkoutPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function WorkoutPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { settings, tz } = await appContext();
   const { id } = await params;
+  const sp = await searchParams;
   const database = db();
   const w = getWorkout(database, Number(id));
   if (!w) notFound();
+  const rating = getWorkoutRating(database, w.id);
   // Pad well beyond the workout's own span: the matching Apple Health workout's start/end
   // commonly differs from Hevy's by seconds to minutes, and listWorkouts needs both ends in range.
   const padMs = 4 * 3600 * 1000;
@@ -68,6 +73,7 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
       >
         <Link href="/training" className="btn small">← Training</Link>
       </PageHead>
+      <FlashMessage searchParams={sp} />
       <section className="grid grid-4">
         <div className="card tile"><span className="label">Duration</span><span className="value">{w.durationS ? formatDuration(w.durationS / 60) : "—"}</span></div>
         <div className="card tile"><span className="label">Energy</span><span className="value">{energy !== null ? formatNumber(energy, 0) : "—"}<span className="unit">{energy !== null ? "kcal" : ""}</span></span><span className="meta">{w.energyKcal === null && linked?.energyKcal ? `from ${linked.sourceName ?? "Apple Health"}` : energy === null ? "not recorded" : ""}</span></div>
@@ -81,6 +87,7 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
         </div>
       </section>
       {w.notes && <p className="section muted">{w.notes}</p>}
+      <WorkoutRatingCard rating={rating} workoutId={w.id} returnTo={`/training/workouts/${w.id}`} hasApiKey={!!config.geminiApiKey} />
       {cardio && cardio.hr.length > 0 && (
         <section className="grid grid-2 section">
           <div className="card">

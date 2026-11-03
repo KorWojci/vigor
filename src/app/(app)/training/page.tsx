@@ -8,6 +8,9 @@ import { listExercises, listRunningEfforts, listWorkouts, workoutsPerWeek } from
 import type { WeekBar } from "@/components/charts";
 import { addDays, formatDate, formatDateTime, isoWeek, presetDays, rangeFromDays, weekStart } from "@/lib/time";
 import { formatDuration, formatNumber, toDisplay } from "@/lib/units";
+import { getWeeklyRecap } from "@/lib/ai/repo";
+import { config } from "@/lib/config";
+import { WeeklyRecapCard } from "@/components/WeeklyRecapCard";
 
 export const metadata = { title: "Training" };
 
@@ -36,6 +39,12 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
   const listed = selectedWeek ? workouts.filter((w) => weekStart(w.startMs, tz) === selectedWeek.week) : workouts;
   const totalVolume = workouts.reduce((a, w) => a + w.volumeKg, 0);
   const totalDuration = workouts.reduce((a, w) => a + (w.durationS ?? 0), 0);
+  const lastWeekStartDay = addDays(weekStart(Date.now(), tz), -7);
+  // Follows the week the user is actually looking at (clicking a bar in "Workouts per week"
+  // narrows to that week); defaults to last calendar week when nothing is selected.
+  const recapWeekStart = selectedWeek?.week ?? lastWeekStartDay;
+  const recap = getWeeklyRecap(database, recapWeekStart, "training");
+  const recapReturnTo = `/training?${new URLSearchParams({ range: preset.key, ...(selectedWeek ? { week: selectedWeek.week } : {}) })}`;
 
   // A fixed lookback for predictions, independent of the page's own range selector — "predict my
   // race time" means "from my recent fitness", not "from whatever window I happen to be browsing".
@@ -79,6 +88,16 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
             <div className="card-head"><h2>Workouts per week</h2><span className="small muted">ISO weeks · click a bar to list its workouts</span></div>
             <WeeklyBars data={weeks} selected={selectedWeek?.week} height={200} />
           </section>
+
+          <WeeklyRecapCard
+            recap={recap}
+            scope="training"
+            title="Training recap"
+            weekLabel={selectedWeek ? `${selectedWeek.title} · ${selectedWeek.dates}` : `Last week · ${formatDate(lastWeekStartDay, tz)} – ${formatDate(addDays(lastWeekStartDay, 6), tz)}`}
+            weekStart={recapWeekStart}
+            returnTo={recapReturnTo}
+            hasApiKey={!!config.geminiApiKey}
+          />
 
           {hasPredictions && (
             <section className="card section">

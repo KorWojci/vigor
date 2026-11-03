@@ -8,10 +8,13 @@ import { getAllSourcesBreakdown, getLatestReading, getMetricSummary, getSleepNig
 import { getSyncStatus } from "@/lib/ingest/sync-status";
 import { appContext, db } from "@/lib/server/context";
 import { getTodayLayout } from "@/lib/settings";
-import { formatDate, formatDateTime, formatRelative, previousRange, rangeFromDays } from "@/lib/time";
+import { addDays, formatDate, formatDateTime, formatRelative, previousRange, rangeFromDays, weekStart } from "@/lib/time";
 import { listWorkouts } from "@/lib/training/repo";
 import { formatDuration, formatNumber } from "@/lib/units";
 import type { UnitSystem } from "@/lib/units";
+import { getWeeklyRecap } from "@/lib/ai/repo";
+import { config } from "@/lib/config";
+import { WeeklyRecapCard } from "@/components/WeeklyRecapCard";
 
 export const metadata = { title: "Today" };
 
@@ -57,6 +60,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const nights = getSleepNights(database, range, tz);
   const lastNight = nights[nights.length - 1] ?? null;
   const workouts = listWorkouts(database, range.startMs, range.endMs);
+  const lastWeekStartDay = addDays(weekStart(Date.now(), tz), -7);
+  const recap = getWeeklyRecap(database, lastWeekStartDay, "full");
   const rightNowHr = getLatestReading(database, "heart_rate");
   const sources = getAllSourcesBreakdown(database, range);
   const hasAnything = sources.length > 0 || workouts.length > 0;
@@ -172,6 +177,15 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
               <MetricSection visible={layout.nutrition.visible} more={layout.nutrition.more} summary={summary} units={units} />
             )}
           </section>
+
+          <WeeklyRecapCard
+            recap={recap}
+            scope="full"
+            weekLabel={`Last week · ${formatDate(lastWeekStartDay, tz)} – ${formatDate(addDays(lastWeekStartDay, 6), tz)}`}
+            weekStart={lastWeekStartDay}
+            returnTo="/today"
+            hasApiKey={!!config.geminiApiKey}
+          />
 
           <section className="card section">
             <div className="card-head"><h2>Synced today</h2></div>

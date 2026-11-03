@@ -216,4 +216,61 @@ ALTER TABLE workouts ADD COLUMN route TEXT;  -- JSON [[t,lat,lon,ele], ...], t =
 ALTER TABLE workouts ADD COLUMN weather TEXT;  -- JSON { tempC, humidityPct, conditionCode }; NULL = none recorded
 `,
   },
+  {
+    version: 4,
+    name: "weekly AI recap",
+    sql: `
+CREATE TABLE weekly_recaps (
+  week_start TEXT PRIMARY KEY,         -- Monday, YYYY-MM-DD (src/lib/time.ts weekStart)
+  generated_at INTEGER NOT NULL,
+  model TEXT NOT NULL,
+  content TEXT NOT NULL,               -- the model's response: JSON text (src/lib/ai/weekly-recap.ts WeeklyRecapResult)
+  prompt TEXT NOT NULL                 -- the exact prompt sent, verbatim, for transparency
+);
+`,
+  },
+  {
+    version: 5,
+    name: "per-workout AI rating",
+    sql: `
+CREATE TABLE workout_ratings (
+  workout_id INTEGER PRIMARY KEY REFERENCES workouts(id) ON DELETE CASCADE,
+  generated_at INTEGER NOT NULL,
+  model TEXT NOT NULL,
+  rating TEXT NOT NULL,                -- one of src/lib/ai/workout-rating.ts WORKOUT_RATING_LABELS
+  summary TEXT NOT NULL,
+  prompt TEXT NOT NULL                 -- the exact prompt sent, verbatim, for transparency
+);
+`,
+  },
+  {
+    version: 6,
+    name: "scoped weekly recaps and per-night sleep summary",
+    sql: `
+-- weekly_recaps gets a second scope: "training" (Training page, training facts only) alongside
+-- the existing "full" recap (Dashboard/Today/Training header). SQLite can't add to a primary key
+-- with ALTER, so rebuild the table; existing rows are the "full" scope.
+CREATE TABLE weekly_recaps_new (
+  week_start TEXT NOT NULL,            -- Monday, YYYY-MM-DD (src/lib/time.ts weekStart)
+  scope TEXT NOT NULL DEFAULT 'full',  -- "full" | "training" (src/lib/ai/weekly-recap.ts)
+  generated_at INTEGER NOT NULL,
+  model TEXT NOT NULL,
+  content TEXT NOT NULL,               -- the model's response: JSON text
+  prompt TEXT NOT NULL,                -- the exact prompt sent, verbatim, for transparency
+  PRIMARY KEY (week_start, scope)
+);
+INSERT INTO weekly_recaps_new (week_start, scope, generated_at, model, content, prompt)
+  SELECT week_start, 'full', generated_at, model, content, prompt FROM weekly_recaps;
+DROP TABLE weekly_recaps;
+ALTER TABLE weekly_recaps_new RENAME TO weekly_recaps;
+
+CREATE TABLE sleep_summaries (
+  night TEXT PRIMARY KEY,              -- the night's wake-up day, YYYY-MM-DD (SleepNight.day)
+  generated_at INTEGER NOT NULL,
+  model TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  prompt TEXT NOT NULL                 -- the exact prompt sent, verbatim, for transparency
+);
+`,
+  },
 ];

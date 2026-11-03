@@ -127,7 +127,7 @@ export default async function MetricDetail({ params, searchParams }: { params: P
               <tbody>
                 {[...nights].reverse().slice(0, 60).map((n) => (
                   <tr key={n.day}>
-                    <td>{formatDate(n.day, tz)}</td>
+                    <td><Link href={`/metrics/sleep_analysis/${n.day}`}>{formatDate(n.day, tz)}</Link></td>
                     <td className="small muted">{formatDateTime(n.startMs, tz).split(", ")[1]} → {formatDateTime(n.endMs, tz).split(", ")[1]}</td>
                     <td className="r num">{formatDuration(n.asleepMin)}</td>
                     <td className="r num">{n.inBedMin === null ? "—" : formatDuration(n.inBedMin)}</td>

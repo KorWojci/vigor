@@ -35,6 +35,14 @@ export const config = {
   get adminPassword(): string | undefined {
     return process.env.VIGOR_ADMIN_PASSWORD || undefined;
   },
+  /** Weekly AI recap (src/lib/ai/weekly-recap.ts) — the one sanctioned exception to "no external
+   *  network calls", and only when the user explicitly clicks Generate. Unset = feature disabled. */
+  get geminiApiKey(): string | undefined {
+    return process.env.GEMINI_API_KEY || undefined;
+  },
+  get geminiModel(): string {
+    return process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+  },
 };
 
 /** The synchronisation interval Vigor is designed around (documented target, not a guarantee). */

@@ -13,9 +13,12 @@ import { appContext, db } from "@/lib/server/context";
 import { getDashboardLayout } from "@/lib/settings";
 import { getWidget, ZONES } from "@/lib/dashboard-layout";
 import { DashboardEditor } from "@/components/DashboardEditor";
-import { formatDate, formatDateTime, formatRelative, presetDays, previousRange, rangeFromDays } from "@/lib/time";
+import { addDays, formatDate, formatDateTime, formatRelative, presetDays, previousRange, rangeFromDays, weekStart } from "@/lib/time";
 import { listWorkouts } from "@/lib/training/repo";
 import { formatDuration, formatNumber, toDisplay } from "@/lib/units";
+import { getWeeklyRecap } from "@/lib/ai/repo";
+import { config } from "@/lib/config";
+import { WeeklyRecapCard } from "@/components/WeeklyRecapCard";
 
 export const metadata = { title: "Dashboard" };
 
@@ -29,6 +32,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const range = rangeFromDays(preset.days, tz);
   const prev = previousRange(range, tz);
   const status = getSyncStatus(database);
+  const lastWeekStartDay = addDays(weekStart(Date.now(), tz), -7);
+  const recap = getWeeklyRecap(database, lastWeekStartDay, "full");
   const edit = sp.edit === "1";
 
   const summaries = new Map<string, MetricSummary>();
@@ -215,6 +220,15 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <DashboardEditor initial={layout} returnTo={`/?range=${preset.key}`} />
       ) : (
         <>
+          <WeeklyRecapCard
+            recap={recap}
+            scope="full"
+            weekLabel={`Last week · ${formatDate(lastWeekStartDay, tz)} – ${formatDate(addDays(lastWeekStartDay, 6), tz)}`}
+            weekStart={lastWeekStartDay}
+            returnTo={`/?range=${preset.key}`}
+            hasApiKey={!!config.geminiApiKey}
+          />
+
           <section className="hero">
             <div className="hero-col">{layout.left.map((k) => widget(k))}</div>
             <div className="figure-wrap card" style={{ padding: 8 }}>
@@ -231,6 +245,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               {layout.below.map((k) => (getWidget(k)?.kind === "panel" ? <div key={k} className="span-2">{panels[k]()}</div> : widget(k)))}
             </section>
           )}
+
           <p className="tiny faint section">
             Use <Link href={`/?edit=1&range=${preset.key}`}>Customize</Link> to show, hide and rearrange widgets. Values are never inferred: a dash means no data was recorded.
           </p>

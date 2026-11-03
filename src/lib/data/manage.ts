@@ -124,6 +124,9 @@ export function deleteData(db: DB, scope: DeleteScope, source?: string): Record<
     if (scope === "everything") {
       run("settings", "DELETE FROM settings");
       run("api_tokens", "DELETE FROM api_tokens");
+      run("weekly_recaps", "DELETE FROM weekly_recaps");
+      run("workout_ratings", "DELETE FROM workout_ratings");
+      run("sleep_summaries", "DELETE FROM sleep_summaries");
     }
   })();
   db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
@@ -146,6 +149,9 @@ const EXPORT_TABLES: { table: string; columns: string; where?: string }[] = [
   { table: "workout_exercises", columns: "id, workout_id, exercise_id, position, source_title, superset_id, notes" },
   { table: "exercise_sets", columns: "id, workout_exercise_id, set_index, set_type, weight_kg, reps, distance_m, duration_s, rpe" },
   { table: "import_runs", columns: "id, kind, source, sync_id, status, started_at, finished_at, received, accepted, updated, skipped, rejected, deleted, error" },
+  { table: "weekly_recaps", columns: "week_start, scope, generated_at, model, content, prompt" },
+  { table: "workout_ratings", columns: "workout_id, generated_at, model, rating, summary, prompt" },
+  { table: "sleep_summaries", columns: "night, generated_at, model, summary, prompt" },
 ];
 
 /** Streams a JSON export of all personal data, row by row (works for large histories). */
@@ -204,6 +210,9 @@ export function storageStats(db: DB): StorageStats {
       "Exercise sets": count("SELECT COUNT(*) AS n FROM exercise_sets"),
       "Body measurements": count("SELECT COUNT(*) AS n FROM body_measurements"),
       "Import runs": count("SELECT COUNT(*) AS n FROM import_runs"),
+      "Weekly AI recaps": count("SELECT COUNT(*) AS n FROM weekly_recaps"),
+      "Workout AI ratings": count("SELECT COUNT(*) AS n FROM workout_ratings"),
+      "Sleep AI summaries": count("SELECT COUNT(*) AS n FROM sleep_summaries"),
     },
   };
 }

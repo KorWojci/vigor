@@ -39,6 +39,7 @@ All tables are defined in `src/lib/db/migrations.ts`.
 | `import_runs` | One row per import attempt (health or Hevy): status, counts, errors, rejection details. |
 | `sync_cursors` | Last acknowledged cursor per `(source, scope)`, e.g. a HealthKit anchor per type. |
 | `sync_client_status` | Queue and error state reported by the iPhone companion. |
+| `weekly_recaps`, `workout_ratings`, `sleep_summaries` | Cached Gemini output, per ISO week+scope (`week_start, scope` PK), per workout (`workout_id` PK) and per sleep night (`night` PK) respectively: the structured response, `prompt` (exact data sent, for transparency), `model`. Only ever written by an explicit user action — see "AI recap, workout rating and sleep summary" below. |
 
 ### Conventions
 
@@ -93,6 +94,17 @@ Period values (dashboard tiles) are the mean of daily values over days **with da
 - The goal (target weight, weekly pace, activity level) lives in `settings.weightGoal` — no new table.
 - Direction (lose/gain) is derived from target vs. the latest logged weight at render time, not stored, so it stays correct as weight changes.
 - Safety floor: 1.2× BMR when computable, else a sex-based absolute minimum (1200/1500 kcal) — a warning is shown rather than silently capping the target.
+
+## AI recap, workout rating and sleep summary (`src/lib/ai/`)
+
+- The one sanctioned exception to "no external network calls" (goal 2 / invariant 9) — `gemini.ts` is the only module that calls `fetch` to an external host, and only when the user explicitly clicks Generate or Regenerate on `WeeklyRecapCard` (Dashboard, Today, Training), `WorkoutRatingCard` (a workout's own detail page) or `SleepSummaryCard` (a sleep night's own detail page, `/metrics/sleep_analysis/[night]` — each night in the Nights table links there). Nothing runs automatically or on a schedule.
+- All three features share the same shape, kept in separate files on purpose: a context builder (DB → structured JSON, canonical units), a pure prompt formatter (unit-converting, fully testable without the network), and `callGemini` in `gemini.ts` (JSON mode: `responseMimeType: "application/json"`), with the response validated against a Zod schema (`parseJsonResponse`) — a malformed response is a thrown error, never silently coerced into something that looks plausible.
+- `weekly-recap.ts` has two scopes sharing one DB table (`weekly_recaps`, keyed by `(week_start, scope)`): `"full"` (training+sleep+nutrition+weight; `{ summary, goodThings, badThings, suggestion, sleepByNight }`, shown on Dashboard and Today) and `"training"` (training facts only — sleep/nutrition data isn't even sent to the model; `{ summary, goodThings, badThings, suggestion }`, shown on the Training page, scoped to whichever week the "Workouts per week" bar chart has selected, defaulting to last calendar week).
+- `workout-rating.ts`: `buildWorkoutRatingContext` gathers one workout's own data plus comparisons Vigor itself computes — whether a set is a new all-time e1RM PR, and how this session's volume (strength) or pace/distance (cardio) compares to the athlete's last 8 similar sessions. The model only classifies (`"strong" | "solid" | "light" | "off"`) and narrates from those facts; it never computes the comparison itself.
+- `sleep-summary.ts`: `buildSleepSummaryContext` gathers one night's own stats plus the athlete's average asleep time over the prior 14 nights (excluding this one); the model returns a short `{ summary }`.
+- The model is instructed to only state facts present in the JSON and to say plainly when data is missing, rather than guessing — but this is a prompt instruction, not a guarantee; treat the output as generated commentary, not as a source of truth the way the rest of the app's numbers are.
+- The exact prompt sent is cached alongside the response (`weekly_recaps`, `workout_ratings` keyed by `workout_id`, `sleep_summaries` keyed by `night`, all upserted on regenerate) and shown in a collapsed "What was sent to Gemini" disclosure on each card, so what left the server is never a black box.
+- Requires `GEMINI_API_KEY` in `.env`. Without it, the cards show a setup message instead of a non-functional button. `GEMINI_MODEL` defaults to `gemini-3.1-flash-lite` (free tier as of this writing — confirm current pricing/model names at https://aistudio.google.com before changing).
 
 ## Adding things
 
