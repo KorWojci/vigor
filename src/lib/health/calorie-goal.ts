@@ -10,6 +10,9 @@ import type { Settings } from "../settings";
  * isn't enough synced history — consistent with "never fabricate data" elsewhere in Vigor.
  */
 
+/** A measured daily average (energy, steps, exercise minutes) is trusted only with this many days of history behind it. */
+export const MIN_DAYS_FOR_MEASURED = 7;
+
 export type ActivityLevel = "sedentary" | "light" | "moderate" | "active" | "very_active";
 
 export const ACTIVITY_LEVELS: { key: ActivityLevel; label: string; multiplier: number }[] = [
@@ -23,6 +26,50 @@ export const ACTIVITY_LEVELS: { key: ActivityLevel; label: string; multiplier: n
 const ACTIVITY_MULTIPLIER: Record<ActivityLevel, number> = Object.fromEntries(
   ACTIVITY_LEVELS.map((l) => [l.key, l.multiplier]),
 ) as Record<ActivityLevel, number>;
+
+function levelRank(level: ActivityLevel): number {
+  return ACTIVITY_LEVELS.findIndex((l) => l.key === level);
+}
+
+function levelFromSteps(avgStepsPerDay: number): ActivityLevel {
+  if (avgStepsPerDay >= 12500) return "very_active";
+  if (avgStepsPerDay >= 10000) return "active";
+  if (avgStepsPerDay >= 7500) return "moderate";
+  if (avgStepsPerDay >= 5000) return "light";
+  return "sedentary";
+}
+
+function levelFromExerciseMinutes(avgMinPerWeek: number): ActivityLevel {
+  if (avgMinPerWeek >= 450) return "very_active";
+  if (avgMinPerWeek >= 300) return "active";
+  if (avgMinPerWeek >= 150) return "moderate";
+  if (avgMinPerWeek >= 30) return "light";
+  return "sedentary";
+}
+
+export interface ActivitySignals {
+  /** Mean daily steps over a recent window — null if there isn't enough synced history. */
+  avgStepsPerDay: number | null;
+  /** Mean weekly exercise minutes over the same window — null if there isn't enough history. */
+  avgExerciseMinPerWeek: number | null;
+}
+
+/**
+ * Estimates a PAL-style activity level from recently recorded steps and/or exercise minutes,
+ * instead of a subjective self-assessment (people reliably overestimate their own activity
+ * level). Rough bands, not a clinical measure. Takes the more active of the two signals when both
+ * are present — a desk job with a heavy lifting habit, and a very walkable day with no formal
+ * "exercise", are both genuine activity even though only one signal shows it. Returns null when
+ * neither has enough data, rather than guessing.
+ */
+export function classifyActivityLevel({ avgStepsPerDay, avgExerciseMinPerWeek }: ActivitySignals): ActivityLevel | null {
+  const levels = [
+    avgStepsPerDay != null ? levelFromSteps(avgStepsPerDay) : null,
+    avgExerciseMinPerWeek != null ? levelFromExerciseMinutes(avgExerciseMinPerWeek) : null,
+  ].filter((l): l is ActivityLevel => l != null);
+  if (levels.length === 0) return null;
+  return levels.reduce((best, l) => (levelRank(l) > levelRank(best) ? l : best));
+}
 
 /** kcal per kg of body-weight change — the standard planning approximation (≈ 3500 kcal/lb). */
 export const KCAL_PER_KG = 7700;

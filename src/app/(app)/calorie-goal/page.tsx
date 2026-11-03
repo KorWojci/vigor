@@ -1,16 +1,13 @@
 import Link from "next/link";
 import { EmptyState, FlashMessage, Notice, PageHead } from "@/components/ui";
 import { getLatestReading, getMetricSummary } from "@/lib/aggregation/series";
-import { ACTIVITY_LEVELS, estimateTdee, planWeightGoal } from "@/lib/health/calorie-goal";
+import { ACTIVITY_LEVELS, classifyActivityLevel, estimateTdee, MIN_DAYS_FOR_MEASURED, planWeightGoal } from "@/lib/health/calorie-goal";
 import { appContext, db } from "@/lib/server/context";
 import { formatDate, previousRange, rangeFromDays } from "@/lib/time";
 import { displayUnitFor, formatNumber, toDisplay } from "@/lib/units";
 import { saveGoalAction } from "./actions";
 
 export const metadata = { title: "Calorie goal" };
-
-/** A measured daily average is trusted only with a reasonable amount of history behind it. */
-const MIN_DAYS_FOR_MEASURED = 7;
 
 export default async function CalorieGoalPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const { settings, tz } = await appContext();
@@ -48,6 +45,13 @@ export default async function CalorieGoalPage({ searchParams }: { searchParams: 
 
   const measuredBasalKcal = basal && basal.daysWithData >= MIN_DAYS_FOR_MEASURED ? basal.value : null;
   const measuredActiveKcal = active && active.daysWithData >= MIN_DAYS_FOR_MEASURED ? active.value : null;
+
+  const steps = getMetricSummary(database, "step_count", range, previous, tz);
+  const exercise = getMetricSummary(database, "exercise_time", range, previous, tz);
+  const estimatedActivityLevel = classifyActivityLevel({
+    avgStepsPerDay: steps && steps.daysWithData >= MIN_DAYS_FOR_MEASURED ? steps.value : null,
+    avgExerciseMinPerWeek: exercise && exercise.daysWithData >= MIN_DAYS_FOR_MEASURED && exercise.value != null ? exercise.value * 7 : null,
+  });
 
   const goal = settings.weightGoal;
   const tdee = estimateTdee({
@@ -136,10 +140,18 @@ export default async function CalorieGoalPage({ searchParams }: { searchParams: 
             <span>Activity level <span className="hint">(fallback only, see below)</span></span>
             <select name="activityLevel" defaultValue={goal.activityLevel}>
               {ACTIVITY_LEVELS.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
+              <option value="auto" disabled={estimatedActivityLevel == null}>
+                {estimatedActivityLevel != null
+                  ? `Calculate mine — currently ${ACTIVITY_LEVELS.find((l) => l.key === estimatedActivityLevel)!.label.split(" —")[0]}`
+                  : "Calculate mine (not enough step/exercise data yet)"}
+              </option>
             </select>
           </label>
         </div>
-        <p className="tiny faint">A direction (lose/gain) is worked out automatically from your target vs. current weight. Activity level is only used to estimate active energy when there isn&apos;t enough measured history yet.</p>
+        <p className="tiny faint">
+          A direction (lose/gain) is worked out automatically from your target vs. current weight. Activity level is only used to estimate active energy when there isn&apos;t enough measured history yet
+          — &ldquo;Calculate mine&rdquo; sets it from your last {MIN_DAYS_FOR_MEASURED}+ days of steps and exercise minutes instead of a guess, and re-checks itself each time you save.
+        </p>
         <div><button className="btn primary">Save goal</button></div>
       </form>
 

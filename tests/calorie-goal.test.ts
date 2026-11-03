@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACTIVITY_LEVELS, estimateTdee, mifflinStJeorBmr, planWeightGoal } from "@/lib/health/calorie-goal";
+import { ACTIVITY_LEVELS, classifyActivityLevel, estimateTdee, mifflinStJeorBmr, planWeightGoal } from "@/lib/health/calorie-goal";
 
 describe("mifflinStJeorBmr", () => {
   it("computes the male and female formulas", () => {
@@ -51,6 +51,35 @@ describe("estimateTdee", () => {
   it("covers every declared activity level", () => {
     expect(ACTIVITY_LEVELS).toHaveLength(5);
     expect(ACTIVITY_LEVELS.map((l) => l.key)).toEqual(["sedentary", "light", "moderate", "active", "very_active"]);
+  });
+});
+
+describe("classifyActivityLevel", () => {
+  it("bands by average daily steps alone", () => {
+    expect(classifyActivityLevel({ avgStepsPerDay: 3000, avgExerciseMinPerWeek: null })).toBe("sedentary");
+    expect(classifyActivityLevel({ avgStepsPerDay: 6000, avgExerciseMinPerWeek: null })).toBe("light");
+    expect(classifyActivityLevel({ avgStepsPerDay: 8500, avgExerciseMinPerWeek: null })).toBe("moderate");
+    expect(classifyActivityLevel({ avgStepsPerDay: 11000, avgExerciseMinPerWeek: null })).toBe("active");
+    expect(classifyActivityLevel({ avgStepsPerDay: 13000, avgExerciseMinPerWeek: null })).toBe("very_active");
+  });
+
+  it("bands by average weekly exercise minutes alone", () => {
+    expect(classifyActivityLevel({ avgStepsPerDay: null, avgExerciseMinPerWeek: 10 })).toBe("sedentary");
+    expect(classifyActivityLevel({ avgStepsPerDay: null, avgExerciseMinPerWeek: 100 })).toBe("light");
+    expect(classifyActivityLevel({ avgStepsPerDay: null, avgExerciseMinPerWeek: 200 })).toBe("moderate");
+    expect(classifyActivityLevel({ avgStepsPerDay: null, avgExerciseMinPerWeek: 320 })).toBe("active");
+    expect(classifyActivityLevel({ avgStepsPerDay: null, avgExerciseMinPerWeek: 500 })).toBe("very_active");
+  });
+
+  it("takes the more active of the two signals when both are present", () => {
+    // low steps (sedentary) but a heavy training habit (active) — the training should win
+    expect(classifyActivityLevel({ avgStepsPerDay: 3000, avgExerciseMinPerWeek: 320 })).toBe("active");
+    // lots of walking (very_active) but no formal exercise (sedentary) — the steps should win
+    expect(classifyActivityLevel({ avgStepsPerDay: 13000, avgExerciseMinPerWeek: 10 })).toBe("very_active");
+  });
+
+  it("returns null when neither signal has enough data, rather than guessing", () => {
+    expect(classifyActivityLevel({ avgStepsPerDay: null, avgExerciseMinPerWeek: null })).toBeNull();
   });
 });
 
