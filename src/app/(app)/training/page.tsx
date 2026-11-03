@@ -3,7 +3,8 @@ import { WeeklyBars } from "@/components/charts";
 import { EmptyState, PageHead, RangeSelector } from "@/components/ui";
 import { appContext, db } from "@/lib/server/context";
 import { EXERCISE_KINDS } from "@/lib/training/calculations";
-import { listExercises, listWorkouts, workoutsPerWeek } from "@/lib/training/repo";
+import { predictRaceTimes, type Confidence } from "@/lib/training/race-predict";
+import { listExercises, listRunningEfforts, listWorkouts, workoutsPerWeek } from "@/lib/training/repo";
 import type { WeekBar } from "@/components/charts";
 import { addDays, formatDate, formatDateTime, isoWeek, presetDays, rangeFromDays, weekStart } from "@/lib/time";
 import { formatDuration, formatNumber, toDisplay } from "@/lib/units";
@@ -36,6 +37,22 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
   const totalVolume = workouts.reduce((a, w) => a + w.volumeKg, 0);
   const totalDuration = workouts.reduce((a, w) => a + (w.durationS ?? 0), 0);
 
+  // A fixed lookback for predictions, independent of the page's own range selector — "predict my
+  // race time" means "from my recent fitness", not "from whatever window I happen to be browsing".
+  const PREDICTION_LOOKBACK_DAYS = 180;
+  const predictions = predictRaceTimes(listRunningEfforts(database, Date.now() - PREDICTION_LOOKBACK_DAYS * 86_400_000));
+  const hasPredictions = predictions.some((p) => p.predictedS !== null);
+  const CONFIDENCE_PILL: Record<Confidence, string> = { high: "ok", medium: "stale", low: "failing" };
+  const distUnit = settings.units === "imperial" ? "mi" : "km";
+  const distDisplay = (m: number) => (settings.units === "imperial" ? m / 1609.344 : m / 1000);
+  const clock = (totalSeconds: number) => {
+    const s = Math.round(totalSeconds);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+  };
+
   return (
     <>
       <PageHead title="Training" sub="Workouts from Hevy exports and Apple Health, with exercise-level progress.">
@@ -62,6 +79,48 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
             <div className="card-head"><h2>Workouts per week</h2><span className="small muted">ISO weeks · click a bar to list its workouts</span></div>
             <WeeklyBars data={weeks} selected={selectedWeek?.week} height={200} />
           </section>
+
+          {hasPredictions && (
+            <section className="card section">
+              <div className="card-head"><h2>Race time predictions</h2><span className="small muted">From running workouts in the last {PREDICTION_LOOKBACK_DAYS} days</span></div>
+              <div className="grid grid-4">
+                {predictions.map((p) => (
+                  <div className="card tile" key={p.distance.key}>
+                    <span className="label">{p.distance.label}</span>
+                    {p.predictedS !== null ? (
+                      <>
+                        <span className="value">{clock(p.predictedS)}</span>
+                        <span className="meta">{clock(p.predictedS / distDisplay(p.distance.meters))} / {distUnit}</span>
+                        <span className={`pill ${CONFIDENCE_PILL[p.confidence!]}`} style={{ marginTop: 6 }}><span className="dot" />{p.confidence} confidence</span>
+                      </>
+                    ) : (
+                      <span className="empty">Not enough data</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="tiny faint" style={{ marginTop: 10 }}>
+                Estimated with the Riegel formula from whichever qualifying run (≥1 km) implies the fastest time at each distance — your best demonstrated
+                fitness, not a guarantee. Confidence reflects how close that run&apos;s own distance is to the target: extrapolating a marathon time from a 5K is a much bigger guess than from
+                a half marathon.
+              </p>
+              <div className="table-wrap" style={{ marginTop: 10 }}>
+                <table>
+                  <thead><tr><th>Distance</th><th>Based on</th><th className="r">Run distance</th><th>When</th></tr></thead>
+                  <tbody>
+                    {predictions.filter((p) => p.basedOn).map((p) => (
+                      <tr key={p.distance.key}>
+                        <td>{p.distance.label}</td>
+                        <td><Link href={`/training/workouts/${p.basedOn!.workoutId}`} className="small">View workout →</Link></td>
+                        <td className="r num small">{formatNumber(distDisplay(p.basedOn!.distanceM), 2)} {distUnit}</td>
+                        <td className="small muted">{formatDate(p.basedOn!.startMs, tz)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           <section className="grid grid-2 section">
             <div className="card">

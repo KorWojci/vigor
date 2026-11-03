@@ -1,6 +1,7 @@
 import type { DB } from "../db";
 import { normalizeExerciseName, sessionStats, type ExerciseKind, type SessionStats, type SetData } from "./calculations";
 import { refreshExerciseKinds } from "./hevy-import";
+import type { RunEffort } from "./race-predict";
 import { decodeRoute, type RoutePoint } from "./route";
 import { decodeWeather, type Weather } from "./weather";
 
@@ -251,6 +252,19 @@ export function mergeExercises(db: DB, sourceId: number, targetId: number): void
     db.prepare("DELETE FROM exercises WHERE id = ?").run(sourceId);
     refreshExerciseKinds(db, [targetId]);
   })();
+}
+
+/** Running workouts with a recorded distance, for race-time prediction (src/lib/training/race-predict.ts). */
+export function listRunningEfforts(db: DB, sinceMs: number): RunEffort[] {
+  return db
+    .prepare(
+      `SELECT id AS workoutId, distance_m AS distanceM, duration_s AS durationS, start_ms AS startMs
+       FROM workouts
+       WHERE activity_type = 'running' AND deleted_at IS NULL AND start_ms >= ?
+         AND distance_m IS NOT NULL AND distance_m > 0 AND duration_s IS NOT NULL AND duration_s > 0
+       ORDER BY start_ms DESC`,
+    )
+    .all(sinceMs) as RunEffort[];
 }
 
 /** Workouts per ISO week (Monday start) for the consistency chart. */
