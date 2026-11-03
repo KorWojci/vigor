@@ -146,6 +146,28 @@ export interface SleepNight {
 const SLEEP_DAY_SHIFT_MS = 6 * HOUR_MS;
 const ASLEEP: SleepCategory[] = ["asleep_core", "asleep_deep", "asleep_rem", "asleep_unspecified"];
 
+export interface SleepStageSegment {
+  category: Exclude<SleepCategory, "in_bed">;
+  startMs: number;
+  endMs: number;
+}
+
+const HYPNOGRAM_CATEGORIES: Exclude<SleepCategory, "in_bed">[] = ["awake", "asleep_rem", "asleep_core", "asleep_deep", "asleep_unspecified"];
+
+/**
+ * One night's stages as a flat, time-ordered list of segments (a "hypnogram"): each stage's
+ * overlapping samples (several sources) are merged first, so a segment is never duplicated or
+ * double-counted. `in_bed` is excluded — it's a bookend, not a stage you're actually in.
+ */
+export function sleepStageTimeline(samples: RawSample[]): SleepStageSegment[] {
+  const out: SleepStageSegment[] = [];
+  for (const category of HYPNOGRAM_CATEGORIES) {
+    const intervals = samples.filter((s) => s.category === category).map((s) => [s.startMs, s.endMs] as Interval);
+    for (const [startMs, endMs] of mergeIntervals(intervals)) out.push({ category, startMs, endMs });
+  }
+  return out.sort((a, b) => a.startMs - b.startMs);
+}
+
 /**
  * Sleep: overlapping samples (several apps, or watch + phone) are merged as time intervals,
  * so total sleep is never double counted.

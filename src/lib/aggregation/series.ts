@@ -2,7 +2,7 @@ import type { DB } from "../db";
 import { MEASUREMENT_METRIC_LINKS } from "../body/measurement-types";
 import { getMetric, type MetricDef } from "../metrics/catalog";
 import type { DateRange } from "../time";
-import { aggregateDaily, aggregateSleep, type DayValue, type RawSample, type SleepNight } from "./aggregate";
+import { aggregateDaily, aggregateSleep, sleepStageTimeline, type DayValue, type RawSample, type SleepNight, type SleepStageSegment } from "./aggregate";
 
 /**
  * Data-access + aggregation for metric time series. Aggregates are computed on read from the
@@ -50,6 +50,11 @@ export function getDailySeries(db: DB, metricKey: string, range: DateRange, tz: 
 export function getSleepNights(db: DB, range: DateRange, tz: string): SleepNight[] {
   const samples = loadRawSamples(db, "sleep_analysis", range.startMs - MARGIN_MS, range.endMs + MARGIN_MS);
   return inRange(aggregateSleep(samples, tz), range);
+}
+
+/** Stage-by-time segments (a hypnogram) for one night, given its own start/end (e.g. from `SleepNight`). */
+export function getSleepStageTimeline(db: DB, startMs: number, endMs: number): SleepStageSegment[] {
+  return sleepStageTimeline(loadRawSamples(db, "sleep_analysis", startMs, endMs));
 }
 
 export interface Reading {

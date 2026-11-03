@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aggregateAvg, aggregateLatest, aggregateSleep, aggregateSum, type RawSample } from "@/lib/aggregation/aggregate";
+import { aggregateAvg, aggregateLatest, aggregateSleep, aggregateSum, sleepStageTimeline, type RawSample } from "@/lib/aggregation/aggregate";
 import { mergeIntervals } from "@/lib/aggregation/intervals";
 import { getDailySeries, getMetricSummary } from "@/lib/aggregation/series";
 import { addMeasurement } from "@/lib/body/repo";
@@ -102,6 +102,37 @@ describe("aggregateSleep", () => {
     expect(night.inBedMin).toBe(270);
     expect(night.stages).toMatchObject({ core: 120, deep: 60, rem: 60, unspecified: 0 });
     expect(night.hasStages).toBe(true);
+  });
+});
+
+describe("sleepStageTimeline", () => {
+  it("returns a time-ordered list of stage segments, excluding in_bed", () => {
+    const samples = [
+      s("2026-10-19T22:00:00Z", "2026-10-20T00:00:00Z", null, "Watch", "asleep_core"),
+      s("2026-10-20T00:00:00Z", "2026-10-20T01:00:00Z", null, "Watch", "asleep_deep"),
+      s("2026-10-20T01:00:00Z", "2026-10-20T02:00:00Z", null, "Watch", "asleep_rem"),
+      s("2026-10-19T21:45:00Z", "2026-10-20T02:15:00Z", null, "iPhone", "in_bed"),
+    ];
+    const segments = sleepStageTimeline(samples);
+    expect(segments).toEqual([
+      { category: "asleep_core", startMs: t("2026-10-19T22:00:00Z"), endMs: t("2026-10-20T00:00:00Z") },
+      { category: "asleep_deep", startMs: t("2026-10-20T00:00:00Z"), endMs: t("2026-10-20T01:00:00Z") },
+      { category: "asleep_rem", startMs: t("2026-10-20T01:00:00Z"), endMs: t("2026-10-20T02:00:00Z") },
+    ]);
+  });
+
+  it("merges overlapping same-stage samples from different sources into one segment", () => {
+    const samples = [
+      s("2026-10-19T22:00:00Z", "2026-10-20T00:00:00Z", null, "Watch", "asleep_core"),
+      s("2026-10-19T23:30:00Z", "2026-10-20T00:30:00Z", null, "Sleep app", "asleep_core"),
+    ];
+    expect(sleepStageTimeline(samples)).toEqual([
+      { category: "asleep_core", startMs: t("2026-10-19T22:00:00Z"), endMs: t("2026-10-20T00:30:00Z") },
+    ]);
+  });
+
+  it("returns nothing for samples with no recognised stage", () => {
+    expect(sleepStageTimeline([])).toEqual([]);
   });
 });
 

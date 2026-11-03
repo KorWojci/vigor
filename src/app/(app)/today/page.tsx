@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { SleepChart } from "@/components/charts";
+import { SleepHypnogram } from "@/components/charts";
 import { EmptyState, FlashMessage, PageHead } from "@/components/ui";
 import { TodayEditor } from "@/components/TodayEditor";
 import { TodayTile } from "@/components/TodayTile";
-import { getAllSourcesBreakdown, getLatestReading, getMetricSummary, getSleepNights, type MetricSummary } from "@/lib/aggregation/series";
+import { getAllSourcesBreakdown, getLatestReading, getMetricSummary, getSleepNights, getSleepStageTimeline, type MetricSummary } from "@/lib/aggregation/series";
 import { getSyncStatus } from "@/lib/ingest/sync-status";
 import { appContext, db } from "@/lib/server/context";
 import { getTodayLayout } from "@/lib/settings";
@@ -129,7 +129,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                     )}
                     <div className="tile"><span className="label">Bedtime – wake</span><span className="value" style={{ fontSize: "1.1rem" }}>{formatDateTime(lastNight.startMs, tz).split(", ")[1]} – {formatDateTime(lastNight.endMs, tz).split(", ")[1]}</span></div>
                   </div>
-                  <SleepChart data={[{ day: lastNight.day, ...lastNight.stages, awake: lastNight.awakeMin }]} height={160} />
+                  <SleepHypnogram segments={getSleepStageTimeline(database, lastNight.startMs, lastNight.endMs)} startMs={lastNight.startMs} endMs={lastNight.endMs} tz={tz} height={160} />
                 </>
               ) : (
                 <p className="muted">No sleep recorded for last night yet. It usually syncs once you wake and open the Health app.</p>
